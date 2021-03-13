@@ -34,6 +34,7 @@ urlcolor: blue
 # Directory structure
 github_dir <- file.path("G:/Shared drives/Nord Lab - Computational Projects/MIA/Canales_eLIFE_2021_WGCNA_GO")
 
+# This directory is available in the repository dedicated to differential expression
 extsub_dir <- file.path("G:/Shared drives/Nord Lab - Computational Projects/MIA/Canales_et_al_eLIFE_DE_repo/Canales_eLIFE_2021_DE/Extra_submission files")
 
 
@@ -111,8 +112,6 @@ rpkm.data <- rpkm(exp.original, gene.length=gene.lengths, log=T, prior.count=0.2
 # Note: There is a minor discrepancy between the rpkm values calculated above, and the values calculated and used during the development phase of this WGCNA analysis. On average, gene rpkm values differ by 0.0004538474, with a range of 1.312417e-09 to 1.632966e-03. These are biologically negligible differences, but they interfere with the reproducibility of some of the plots presented in the manuscript. In order to maintain reproducibility the object rpkm.data_old.RData is loaded from the harddrive. Column names used during the development phase of the project are translated to the current format using the dict data frame. Update from R3.x.x to R 4.0.2, or an update of the edgeR::rpkm() function, resulting in a change in how floating point numbers are handled, is the most likely reason of issue.
 
 load("rpkm.data_old.RData")
-rpkm.data_old <- dddd
-rm(dddd)
 
 dict <- read.csv("sample_dict.csv")
 dict$X <- NULL
@@ -607,6 +606,104 @@ pl <- lapply(c("blue", "turquoise", "BrRePi", "YeMaBl", "green",  "grey"), funct
 ml <- marrangeGrob(pl, nrow=2, ncol=3, top = "", layout_matrix = rbind(c(1:3), c(4:6)))
 ml
 
+#save.image("G:/Shared drives/Nord Lab - Computational #Projects/MIA/Canales_eLIFE_2021_WGCNA_GO/Workspace_3_12_2021.RData")
 
+#load("G:/Shared drives/Nord Lab - Computational #Projects/MIA/Canales_eLIFE_2021_WGCNA_GO/Workspace_3_12_2021.RData")
 
 ```
+
+
+## 1.7 Green and Grey module gene expression 
+
+```{r, fig.cap="Fig. 2a Violin plots visualize distribution of log2 fold changes of Green and Grey module gene expression between control and MIA animals. At E12.5, an initial set of genes in the Green and Grey modules are induced and DE in MIA samples. By E14.5, generalized module expression exhibits induction in the MIA samples, with particularly strong change for the Green module, where nearly all genes are pregulated. Genes with expression trajectories shown in (d) are labeled."}
+
+# NOTE: The green color marking was only used to aid with identifying points for precise labeling in the Illustrator 
+
+#Filters the original merged_MM_and_GS object. Needed for counting genes in each module.
+merged_MM_and_GS_filtered <- filter(merged_MM_and_GS, gene_name %in% rownames(datExpr))
+merged_MM_and_GS_filtered$moduleColors_merged <- moduleColors_merged # Yes, I checked the order.
+
+# Reading DE supplementary files
+# [,2:7] skips the already present module color assignment columns
+E12.5_GLM <- read.csv("Supplementary Table 1 , E12.5_DE_saline_vs_polyIC.csv")[,2:7]
+E14.5_GLM <- read.csv("Supplementary Table 2, E14.5_DE_saline_vs_polyIC.csv")[,2:7]
+E17.5_GLM <- read.csv("Supplementary Table 3, E17.5_DE_saline_vs_polyIC.csv")[,2:7]
+E19.5_GLM <- read.csv("Supplementary Table 4, P0_DE_saline_vs_polyIC.csv")[,2:7]
+
+E12.5_GLM_module <- merge(E12.5_GLM, merged_MM_and_GS_filtered[,c(1,18, 29)], by="gene_name")
+E14.5_GLM_module <- merge(E14.5_GLM, merged_MM_and_GS_filtered[,c(1,18, 29)], by="gene_name")
+E17.5_GLM_module <- merge(E17.5_GLM, merged_MM_and_GS_filtered[,c(1,18, 29)], by="gene_name")
+E19.5_GLM_module <- merge(E19.5_GLM, merged_MM_and_GS_filtered[,c(1,18, 29)], by="gene_name")
+
+
+E12.5_GLM_module$DPC <- rep("E12.5", nrow(E12.5_GLM_module))
+E14.5_GLM_module$DPC <- rep("E14.5", nrow(E14.5_GLM_module))
+E17.5_GLM_module$DPC <- rep("E17.5", nrow(E17.5_GLM_module))
+E19.5_GLM_module$DPC <- rep("E19.5", nrow(E19.5_GLM_module))
+
+
+all_GLM_module <- rbind(E12.5_GLM_module, E14.5_GLM_module, E17.5_GLM_module, E19.5_GLM_module)
+
+all_GLM_module$Significant <- ifelse(all_GLM_module$PValue < 0.05, "P < 0.05", "P > 0.05")
+all_GLM_module$Significant <- ifelse(all_GLM_module$FDR < 0.05, "FDR < 0.05", all_GLM_module$Significant)
+
+
+all_GLM_module$moduleColors_merged <- factor(all_GLM_module$moduleColors_merged, levels = c("blue", "turquoise", "BrRePi", "YeMaBl", "grey", "green"))
+
+all_GLM_module <- arrange(all_GLM_module, moduleColors_merged)
+
+all_GLM_module$DPC_module <- paste0(all_GLM_module$DPC, "_", all_GLM_module$moduleColors_merged)
+
+all_GLM_module$moduleColors_merged <- factor(all_GLM_module$moduleColors_merged, levels = c("blue", "turquoise", "BrRePi", "YeMaBl", "green", "grey"))
+
+all_GLM_module <- arrange(all_GLM_module, moduleColors_merged)
+
+
+#
+all_GLM_module <- filter(all_GLM_module, logCPM > 0, DPC %in% c("E12.5", "E14.5"))
+all_GLM_module_filtered <- filter(all_GLM_module, moduleColors_merged %in% c("green", "grey"))
+
+#Fig 3a Mol Psych
+sel_gene_list <- c("Vegfa", "Flt1", "Adm", "Il20rb", "Bnip3", "Pdk1")
+
+pos <- position_jitter(seed = 1234)
+df_mod <- all_GLM_module_filtered
+df_mod$logFC <- ifelse(df_mod$logFC > 4, 4, df_mod$logFC)
+df_mod$logFC <- ifelse(df_mod$logFC < -2, -2, df_mod$logFC)
+
+
+p <- ggplot(df_mod, 
+              aes(x=moduleColors_merged, y=logFC, label=gene_name, color = Significant, fill = Significant))+
+  geom_jitter(data=filter(df_mod, Significant == "P > 0.05"), 
+              aes(fill = Significant), pch=21, alpha=0.1, position = pos)+
+  geom_jitter(data=filter(df_mod, Significant == "P < 0.05"), 
+              aes(fill = Significant), pch=21, alpha=0.3, position = pos)+
+  geom_jitter(data=filter(df_mod, Significant == "FDR < 0.05"), 
+              aes(fill = Significant), pch=21, alpha=0.7, position = pos)+
+  
+  geom_point(data=filter(df_mod, logFC > 0, PValue < 0.05, gene_name %in% sel_gene_list), 
+              aes(x=moduleColors_merged, y=logFC, fill = "green"), 
+                  pch=21, size=2, alpha=1, position = pos)+
+  
+  geom_violin(data=df_mod, 
+                aes(x=moduleColors_merged, y=logFC, group=DPC_module), alpha=0.2)+
+  geom_text_repel(data=filter(df_mod, logFC > 0, PValue < 0.05, gene_name %in% sel_gene_list),
+                  point.padding = 1, position = pos)+
+  theme_bw()+
+  
+  scale_fill_manual(values=c("FDR < 0.05" = "#E41A1C", "P < 0.05"="#eb8889", 
+                             "P > 0.05" ="grey", "green"="green"))+
+  scale_color_manual(values=c("FDR < 0.05" = "black", "P < 0.05"="#eb8889", 
+                              "P > 0.05" ="grey", "green"="green"))+
+  
+  theme(axis.text.x=element_text(vjust=0.9, hjust=1, size=10))+
+  labs(x = "", y = "log2FC")+
+  facet_wrap(~DPC, ncol = 2)+
+  geom_hline(yintercept = 0)+
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())
+  
+p
+
+```
+
