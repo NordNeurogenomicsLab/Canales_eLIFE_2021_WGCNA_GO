@@ -1,0 +1,612 @@
+---
+title: "WGCNA and Gene Ontology Enrichment analysis"
+subtitle: |
+  [Canales et al. 2020 (under review): A temporal map of maternal immune activation-induced changes \n reveals a shift in neurodevelopmentiming and perturbed cortical development in mice](https://www.biorxiv.org/content/10.1101/2020.06.13.150359v1) 
+ 
+author: |
+  | Data analysis by:
+  | Karol Cichewicz, kcichewicz@ucdavis.edu
+  | Alexander Nord, asnord@ucdavis.edu, [Lab website](https://nordlab.faculty.ucdavis.edu/)
+  Raw data available at [GSE166376](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE166376)
+
+abstract: |
+  **Background** Environmental insults that activate the maternal immune system are potent primers of developmental neuropathology and maternal immune activation (MIA) has emerged as a risk factor for neurodevelopmental and psychiatric disorders. Animal models of MIA provide an opportunity to identify molecular pathways that initiate disease processes and lead to neuropathology and behavioral deficits in offspring. MIA-induced behaviors are accompanied by anatomical and neurochemical alterations in adult offspring that parallel those seen in affected human populations.
+  
+  **Methods** We performed transcriptional profiling and neuroanatomical characterization in a time course across mouse embryonic cortical development, following MIA via single injection of the viral mimic polyinosinic:polycytidylic acid (polyI:C) at E12.5. Transcriptional changes identified in the cortex of MIA offspring at E17.5 were validated and mapped to cortical neuroanatomy and cell types via protein analysis and immunohistochemistry.
+  
+  **Results** MIA induced strong transcriptomic signatures, including induction of genes associated with hypoxia, immune signaling, and angiogenesis. The acute response identified 6h after the MIA insult was followed by changes in proliferation, neuronal and glial differentiation, and cortical lamination that emerged at E14.5 and peaked at E17.5. Decreased numbers of proliferative cell types in germinal zones and alterations in neuronal and glial cell types across cortical lamina were identified in the MIA-exposed cortex.
+  
+  **Conclusions** MIA-induced transcriptomic signatures in fetal offspring overlap significantly with perturbations identified in neurodevelopmental disorders (NDDs), and provide novel insights into alterations in molecular and developmental timing processes linking MIA and neuropathology, potentially revealing new targets for development of novel approaches for earlier diagnosis and treatment of these disorders.
+  
+output:
+  html_document:
+    code_folding: hide
+    css: style.css
+    theme: spacelab
+    toc: true
+    toc_depth: 4
+    toc_float: true
+urlcolor: blue
+---
+
+```{r, message=FALSE, warning = FALSE, error=FALSE, echo=TRUE, cache=FALSE}
+
+# Directory structure
+github_dir <- file.path("G:/Shared drives/Nord Lab - Computational Projects/MIA/Canales_eLIFE_2021_WGCNA_GO")
+
+extsub_dir <- file.path("G:/Shared drives/Nord Lab - Computational Projects/MIA/Canales_et_al_eLIFE_DE_repo/Canales_eLIFE_2021_DE/Extra_submission files")
+
+
+setwd(github_dir)
+
+
+# Global R markdown code chunk options
+knitr::opts_chunk$set(message=FALSE, 
+                      warning = FALSE, 
+                      error=FALSE, 
+                      echo=TRUE, 
+                      cache=FALSE, 
+                      fig.width = 7, fig.height = 6, 
+                      fig.align = 'left')
+
+# R packages
+library(sva)
+library(RUVnormalize)
+library(pheatmap)
+library(edgeR)
+library(GenomicFeatures)
+library(mclust)
+library(parallel)
+library(ggplot2)
+library(reshape2)
+library(dplyr)
+library(data.table)
+library(DT)
+library(RColorBrewer)
+library(knitr)
+library(ggrepel)
+library(gridExtra)
+library(grid)
+library(plyr)
+library(plotly)
+library(Hmisc)
+library(WGCNA)
+library(knitr)
+
+```
+
+```{r}
+
+# Loads environment objects from the DE analysis.
+#load("G:/Shared drives/Nord Lab - Computational #Projects/MIA/Canales_et_al_eLIFE_DE_repo/Canales_eLIFE_2021_DE/Canales_2021_eLIFE_DE_workspace.RData")
+
+```
+
+# 1. WGCNA
+
+WGCNA approach run on a full rpkm data set consisting of 24015 genes. Genes with low expression are excluded from the analysis after the network construction, limiting the gene set to 17195.
+
+```{r}
+# Note: Some of the comments were copied/pasted from WGCNA documentation.
+
+# Reads Gene counts, 24015 genes x 74 samples
+exp.original <- read.csv(paste0(extsub_dir,"/", "Gene_counts.csv"))
+rownames(exp.original) <- exp.original$X
+exp.original$X <- NULL
+
+# Reading metadata
+sample.info <- read.csv(paste0(extsub_dir,"/", "metadata.csv"))
+
+options(stringsAsFactors = FALSE)
+#allowWGCNAThreads()  # Multi-threading within compiled code is not available on Windows 
+
+# Gene lengths calculation
+load(paste0(extsub_dir,"/","exonic.gene.sizes"))
+
+gene.lengths <- as.numeric(lapply(1:nrow(exp.original), function(x) FUN= as.numeric(exonic.gene.sizes[rownames(exp.original)[x]])))
+
+# Calculating differences in rpkm values
+rpkm.data <- rpkm(exp.original, gene.length=gene.lengths, log=T, prior.count=0.25)
+
+# Note: There is a minor discrepancy between the rpkm values calculated above, and the values calculated and used during the development phase of this WGCNA analysis. On average, gene rpkm values differ by 0.0004538474, with a range of 1.312417e-09 to 1.632966e-03. These are biologically negligible differences, but they interfere with the reproducibility of some of the plots presented in the manuscript. In order to maintain reproducibility the object rpkm.data_old.RData is loaded from the harddrive. Column names used during the development phase of the project are translated to the current format using the dict data frame. Update from R3.x.x to R 4.0.2, or an update of the edgeR::rpkm() function, resulting in a change in how floating point numbers are handled, is the most likely reason of issue.
+
+load("rpkm.data_old.RData")
+rpkm.data_old <- dddd
+rm(dddd)
+
+dict <- read.csv("sample_dict.csv")
+dict$X <- NULL
+
+# This sapply function calculates differences between two rpkm() results.
+# It's commented out as a not critical part of this report 
+#rpkm_new_old_diffs <- sapply(1:24015, function(x){
+
+#df1 <- as.data.frame(reshape2::melt(rpkm.data[x,]))
+#df1 <- data.frame("sample_new" = rownames(df1), "value" = df1$value)
+
+#df2 <- reshape2::melt(rpkm.data_old[x,])
+#df2 <- data.frame("sample_old" = paste0("X", rownames(df2)), "value" = df2$value)
+#df2 <- merge(df2, dict, by.x = "sample_old", by.y = "sample_old")[,c(3,2)]
+
+#diff_df <- merge(df1, df2, by.x = "sample_new", by.y = "sample_new")
+#diff_df$value.x - diff_df$value.y
+
+#})
+
+#mean(rpkm_new_old_diffs)
+#range(rpkm_new_old_diffs)
+
+dict <- read.csv("sample_dict.csv")
+dict$X <- NULL
+dict$sample_old <- gsub('^\\X|\\.$', '', dict$sample_old)
+
+#colnames(rpkm.data_old) 
+#all(colnames(rpkm.data_old) %in% dict$sample_old)  # TRUE
+
+# Renaming columns in the old rpkm data
+colnames(rpkm.data_old) <- plyr::mapvalues(colnames(rpkm.data_old), from = dict$sample_old, to = dict$sample_new)
+
+# Checking column order
+# data.frame("meta" = sample.info$Sample_ID, colnames(rpkm.data_old))
+
+# Reordering columns to match them with the order in sample.info
+col_order <- sample.info$Sample_ID
+rpkm.data_old <- rpkm.data_old[, col_order]
+
+# Column order matches
+#data.frame("meta" = sample.info$Sample_ID, colnames(rpkm.data_old))
+
+metData <- sample.info
+rnaData <- rpkm.data_old
+raw_counts_Data <- exp.original  #I'm running the analysis using all 24015 genes.  
+
+sampleNames <- names(data.frame(rnaData))
+
+# CHECK SAMPLES
+#print(dim(rnaData)) # [1] 24015 genes, 74 samples
+#print(dim(metData)) # [1] 74 samples, 15 characteristics
+
+datExpr <- data.frame(rnaData) 
+#table(dimnames(t(datExpr))[[1]]==metData$Sample_ID) # TRUE 74
+
+
+# WGCNA ROUND 1
+## Full Dataset
+dir.create("./round1-signed/data", recursive = T, showWarnings = FALSE)
+dir.create("./round1-signed/figures", recursive = T, showWarnings = FALSE)
+dir.create("./round1-signed/tables", recursive = T, showWarnings = FALSE)
+
+
+# DETERMINE IF ANY GENE VALUES ARE MISSING AND REMOVES THOSE THAT ARE
+gsg = goodSamplesGenes(datExpr, verbose = 0); # make sure all genes are OK (no missing or 0 variance)
+#gsg$allOK; # [1] TRUE if all genes are fine 
+if (!gsg$allOK) {
+  # print the gene and sample names that were removed
+  if (sum(!gsg$goodGenes)>0) 
+    printFlush(paste("Removing genes:", paste(names(datExpr)[!gsg$goodGenes], collapse = ", ")));
+  if (sum(!gsg$goodSamples)>0) 
+    printFlush(paste("Removing samples:", paste(rownames(datExpr)[!gsg$goodSamples], collapse = ", ")));
+  # remove the offending genes and samples from the data
+  datExpr = datExpr[gsg$goodSamples, gsg$goodGenes];
+}
+```
+
+## 1.1 Outlier detection
+
+```{r, fig.cap= "No outlier samples have been detected."}
+
+sampleTree = hclust(dist(t(datExpr)), method = "average");
+
+# Plot the sample tree: Open a graphic output window of size 12 by 9 inches
+# The user should change the dimensions if the window is too large or too small.
+
+#sizeGrWindow(12,9)
+#pdf(file = "Plots/sampleClustering.pdf", width = 12, height = 9);
+par(cex = 0.6);
+par(mar = c(0,4,2,0))
+plot(sampleTree, main = "Sample clustering to detect outliers", sub="", xlab="", cex.lab = 1.5, 
+     cex.axis = 1.5, cex.main = 2)
+
+# Trim the samples if necessary using the cutreeStatic (in the beginning of the tutorial).
+# Trimming was not necessary for this dataset 
+```
+
+## 1.2 Sample dendrogram and trait heatmap
+
+```{r, fig.width = 10, fig.height = 8, fig.cap="Sample dendrogram and trait heatmap. Red color indicates polyI:C treatment or males."}
+
+ # compare samples to traits
+ sampleTree2 = hclust(dist(t(datExpr)), method = "average")
+ metData2 = metData[,c("Sample_ID", "DPC", "Condition", "Response", "sex.by.rna", "Lane", "Litter")]
+ rownames(metData2) = metData2$Sample_ID
+ metData2$Sample_ID = NULL
+ 
+ # Re-cluster samples
+ sampleTree2 = hclust(dist(t(datExpr)), method = "average")
+ 
+ # Convert traits to a color representation: white means low, red means high, grey means missing entry
+ m_col <- data.frame("Condition" = as.numeric(ifelse(metData2$Condition=="Saline", 0,1)),
+                     "Sex" = as.numeric(ifelse(metData2$sex.by.rna=="M", 1,0)))
+                     
+ traitColors = numbers2colors(m_col, signed = T)
+ colnames(traitColors) <- c("Condition", "Sex")
+ 
+ par(cex = 0.6);
+ par(mar = c(0,4,2,0))
+ # Plot the sample dendrogram and the colors underneath.
+ plotDendroAndColors(sampleTree2, traitColors,
+                      groupLabels = metData2$Sample_ID,
+                      main = "Sample dendrogram and trait heatmap")
+
+```
+
+## 1.3 Estimation of the soft-threshold power
+
+```{r, figures-side, fig.show="hold", out.width="50%", fig.cap="We choose the soft power 3, which is the lowest power at which the scale-free topology reaches high R^2"}
+
+# Choose a set of soft-thresholding powers
+ powers = c(c(1:10), seq(from = 12, to=20, by=2))
+
+# Call the network topology analysis function
+# It's conditionally loaded from the file to increase efficiency of writing this report
+ if(file.exists("sft.RData")){
+  load("sft.RData")
+  } else {
+  sft = pickSoftThreshold(t(datExpr), powerVector = powers, verbose = 5)
+  }  
+
+ # Plot the results:
+ #sizeGrWindow(9, 5)
+ #par(mfrow = c(1,2));
+ cex1 = 0.9;
+ 
+ # Scale-free topology fit index as a function of the soft-thresholding power
+ plot(sft$fitIndices[,1], -sign(sft$fitIndices[,3])*sft$fitIndices[,2],
+      xlab="Soft Threshold (power)",ylab="Scale Free Topology Model Fit,signed R^2",type="n",
+      main = paste("Scale independence"));
+      text(sft$fitIndices[,1], -sign(sft$fitIndices[,3])*sft$fitIndices[,2],
+      labels=powers,cex=cex1,col="red");
+ # this line corresponds to using an R^2 cut-off of h
+ abline(h=0.90,col="red")
+ 
+ 
+ # Mean connectivity as a function of the soft-thresholding power
+ plot(sft$fitIndices[,1], sft$fitIndices[,5],
+      xlab="Soft Threshold (power)",ylab="Mean Connectivity", type="n",
+      main = paste("Mean connectivity"))
+      text(sft$fitIndices[,1], sft$fitIndices[,5], labels=powers, cex=cex1,col="red")
+ 
+```
+
+## 1.4 Network construction and module detection
+
+```{r}
+# Automatic network construction and module detection
+
+# Analyzing a dataset with max BlockSize=25000 on a laptop with 16 GB of RAM works just fine, 
+# but takes a substantial amount of time. ~90 min on Intel(R) Core(TM) i7-5600U CPU.
+# From the documentation: "A 16GB workstation should handle up to 20000 probes; a 32GB workstation should handle perhaps 30000."
+
+# I saved the net4.RData object to speed up knitting this report, and decrease carbon footprint. 
+
+if(file.exists("net4.RData")){
+  
+  load("net4.RData")
+  
+  } else {
+  
+  # Automatic network construction and module detection
+  tmpMulti = as.data.frame(t(datExpr))
+      
+  net = blockwiseModules(datExpr=tmpMulti, checkMissingData=TRUE, minModuleSize=10,
+                        maxBlockSize=25000,  corType="bicor", power = 3,
+                        networkType="signed", TOMType = "signed", saveTOMs=TRUE,
+                        saveTOMFileBase=paste("./round1-signed/data/signed-round1"),
+                        nThreads=4, verbose=Inf, mergeCutHeight = 0.15, 
+                        pamStage=FALSE, reassignThreshold=1e-10, deepSplit=2)
+
+  #save(net, file = "net4.RData")
+  
+}
+
+```
+
+```{r, fig.width = 8, fig.height = 6, fig.cap= "Fig. 2a. WGCNA cluster dendrogram of time series samples identifies genes that were assigned into co-expression modules. Based on similarities in module gene expression, six of the original 10 modules were grouped into two larger modules, BrRePi: Brown, Red and Pink; YeMaBl: Yellow, Magenta and Black."}
+
+# Module-trait association testing - full 24015 gene set
+
+ #open a graphics window
+ #sizeGrWindow(12, 9)
+ 
+# Convert labels to colors for plotting
+ mergedColors = net$colors
+ # Plot the dendrogram and the module colors underneath
+ plotDendroAndColors(net$dendrograms[[1]], mergedColors[net$blockGenes[[1]]],
+                     "Module colors", 
+                     dendroLabels = FALSE, hang = 0.03,
+                     addGuide = TRUE, guideHang = 0.05)
+
+```
+
+
+```{r, fig.width = 7, fig.height = 6, fig.cap= "Module-trait association testing. Full 24015 gene set. Numerical values represent signed Pearson’s correlation coefficients, with Student asymptotic p values in brackets. Green represents negative and red represents positive correlation. Color intensity signifies the strength of the correlation."}
+ moduleLabels = net$colors
+ moduleColors = net$colors
+ MEs = net$MEs;
+ geneTree = net$dendrograms[[1]]
+
+
+datTraits <- data.frame(DPC=metData$DPC, 
+                        Condition=ifelse(metData$Condition=="PolyIC", 1, 0),
+                        Sex=ifelse(metData$sex.by.rna == "M", 1, 0))
+ 
+ # Define numbers of genes and samples
+ nGenes = ncol(t(datExpr));
+ nSamples = nrow(t(datExpr));
+ # Recalculate MEs with color labels
+ 
+ MEs0 = moduleEigengenes(t(datExpr), moduleColors)$eigengenes
+ 
+ 
+ MEs = orderMEs(MEs0)
+ moduleTraitCor = cor(MEs, datTraits, use = "p");
+ moduleTraitPvalue = corPvalueStudent(moduleTraitCor, nSamples);
+ 
+ #knitr::kable(moduleTraitPvalue)
+ 
+ #reading the table. We color code each association by the correlation value:
+
+ #sizeGrWindow(10,6)
+ # Will display correlations and their p-values
+ textMatrix = paste(signif(moduleTraitCor, 2), "\n(",
+                    signif(moduleTraitPvalue, 1), ")", sep = "");
+ dim(textMatrix) = dim(moduleTraitCor)
+ par(mar = c(6, 8.5, 3, 3));
+ # Display the correlation values within a heatmap plot
+ labeledHeatmap(Matrix = moduleTraitCor,
+                xLabels = names(datTraits),
+                yLabels = names(MEs),
+                ySymbols = names(MEs),
+                colorLabels = FALSE,
+                colors = colorRampPalette(c("green", "white", "red"))(1000),
+                textMatrix = textMatrix,
+                setStdMargins = FALSE,
+                cex.text = 1,
+                zlim = c(-1,1),
+                main = paste("Module-trait relationships"))
+ 
+# We quantify associations of individual genes with our trait of interest  by defining Gene Significance GS as (the absolute value of) the correlation between the gene and the trait. For each module, we also define a quantitative measure of Module Membership (MM) as the correlation of the module eigengene and the gene expression profile. This allows us to quantify the similarity of all genes on the array to every module.
+# Define variable weight containing the weight column of datTrait
+ 
+ modNames = substring(names(MEs), 3)
+ geneModuleMembership = as.data.frame(cor(t(datExpr), MEs, use = "p"));
+ MMPvalue = as.data.frame(corPvalueStudent(as.matrix(geneModuleMembership), nSamples));
+ 
+ names(geneModuleMembership) = paste("MM", modNames, sep="");
+ names(MMPvalue) = paste("p.MM", modNames, sep="");
+ geneTraitSignificance = as.data.frame(cor(t(datExpr), datTraits, use = "p"));
+ 
+ GSPvalue = as.data.frame(corPvalueStudent(as.matrix(geneTraitSignificance), nSamples));
+ names(geneTraitSignificance) = paste("GS.", names(datTraits), sep="");
+ names(GSPvalue) = paste("p.GS.", names(datTraits), sep="")
+ 
+ #head(GSPvalue)
+ #moduleTraitPvalue
+ 
+```
+
+```{r}
+
+ # merging geneModuleMembership with GSPvalue - gene significance value for the association with a trait. 
+ geneModuleMembership$gene_name <-rownames(geneModuleMembership) 
+ GSPvalue$gene_name <- rownames(GSPvalue)
+ merged_MM_and_GS <- merge(geneModuleMembership, GSPvalue, by="gene_name")
+ 
+ geneTraitSignificance$gene_name <- rownames(geneTraitSignificance)
+ rownames(geneTraitSignificance) <- NULL
+ merged_MM_and_GS <- merge(merged_MM_and_GS, geneTraitSignificance, by="gene_name")
+ 
+ colors_df <- data.frame(gene_name=rownames(datExpr), moduleColors=moduleColors) # I think the order is correct, but have to verify
+ merged_MM_and_GS <- merge(merged_MM_and_GS, colors_df, by="gene_name")
+ 
+ MMPvalue$gene_name <- rownames(MMPvalue)
+ rownames(MMPvalue) <- NULL
+ merged_MM_and_GS <- merge(merged_MM_and_GS, MMPvalue, by="gene_name")
+
+```
+
+
+## 1.5 Merged and filtered modules
+
+```{r}
+# open a graphics window
+ #sizeGrWindow(12, 9)
+ # Convert labels to colors for plotting
+ #mergedColors = net$colors
+ # Plot the dendrogram and the module colors underneath
+ #plotDendroAndColors(net$dendrograms[[1]], mergedColors[net$blockGenes[[1]]],
+ #                     "Module colors", 
+ #                     dendroLabels = FALSE, hang = 0.03,
+ #                    addGuide = TRUE, guideHang = 0.05)
+ 
+ moduleLabels = net$colors
+ moduleColors = net$colors
+ 
+#I'm editing this script to merge modules containing genes with similar expression trajectory and  function.
+ 
+ #Brown + Red + Pink = BrRePi, Yellow + Magenta + Black = YeMaBl
+ moduleColors_merged= ifelse(moduleColors=="brown", "BrRePi", moduleColors)
+ moduleColors_merged= ifelse(moduleColors=="red", "BrRePi", moduleColors_merged)
+ moduleColors_merged= ifelse(moduleColors=="pink", "BrRePi", moduleColors_merged)
+ 
+moduleColors_merged= ifelse(moduleColors=="yellow", "YeMaBl", moduleColors_merged)
+moduleColors_merged= ifelse(moduleColors=="magenta", "YeMaBl", moduleColors_merged)
+moduleColors_merged= ifelse(moduleColors=="black", "YeMaBl", moduleColors_merged)
+
+moduleLabels= moduleColors_merged
+moduleColors = moduleColors_merged
+
+
+ MEs = net$MEs;
+ geneTree = net$dendrograms[[1]];
+ #save(MEs, moduleLabels, moduleColors, geneTree,
+ #      file = "MIA_Karol_preliminary_-networkConstruction-auto.RData")
+```
+
+
+```{r}
+#I'm filtering the same 17195 genes as used in the DE analysis
+
+datExpr <- rnaData #rnaData contains log2 rpkm values of 74 samples and 24015 genes used for DE expression analysis  
+datExpr <- as.data.frame(datExpr)
+datExpr$moduleColors_merged <- moduleColors_merged
+datExpr$moduleColors <- net$colors
+
+datExpr$gene_name <- rownames(datExpr)
+
+original_exp.data <- read.csv(paste0(extsub_dir,"/", "Count_gene_set_from_initial_submission.csv"))
+
+y <- filter(datExpr, gene_name %in% original_exp.data$gene_name)
+
+moduleColors_merged <- y$moduleColors_merged
+moduleColors <- y$moduleColors
+
+rownames(y) <- y$gene_name
+y$gene_name <- NULL
+y$moduleColors_merged <- NULL
+y$moduleColors <- NULL
+
+datExpr <- y
+```
+
+
+```{r, fig.cap="Fig. 2b Heatmap of correlation between gene expression modules and experimental traits; age, condition (saline vs poly(I:C)), and sex. Filtered 17195 gene set. Blue and Turquoise modules are strongly associated with age; Green and Grey modules are significantly associated with MIA condition. Numerical values represent signed Pearson’s correlation coefficients, with Student asymptotic p values in brackets. Green represents negative and red represents positive correlation. Color intensity signifies the strength of the correlation."}
+
+datTraits <- data.frame(DPC=metData$DPC,
+                        Condition=ifelse(metData$Condition=="PolyIC", 1, 0), 
+                        Sex=ifelse(metData$sex.by.rna == "M", 1, 0))
+ 
+ # Define numbers of genes and samples
+ nGenes = ncol(t(datExpr));
+ nSamples = nrow(t(datExpr));
+ # Recalculate MEs with color labels
+ MEs0 = moduleEigengenes(t(datExpr), moduleColors_merged)$eigengenes
+ MEs = orderMEs(MEs0)
+ moduleTraitCor = cor(MEs, datTraits, use = "p");
+ moduleTraitPvalue = corPvalueStudent(moduleTraitCor, nSamples);
+ 
+ #knitr::kable(moduleTraitPvalue)
+ 
+ 
+ #reading the table. We color code each association by the correlation value:
+
+ #sizeGrWindow(10,6)
+ # Will display correlations and their p-values
+ textMatrix = paste(signif(moduleTraitCor, 2), "\n(",
+                    signif(moduleTraitPvalue, 1), ")", sep = "");
+ dim(textMatrix) = dim(moduleTraitCor)
+ par(mar = c(6, 8.5, 3, 3));
+ # Display the correlation values within a heatmap plot
+ labeledHeatmap(Matrix = moduleTraitCor,
+                xLabels = names(datTraits),
+                yLabels = names(MEs),
+                ySymbols = names(MEs),
+                colorLabels = FALSE,
+                colors = colorRampPalette(c("green", "white", "red"))(1000),
+                textMatrix = textMatrix,
+                setStdMargins = FALSE,
+                cex.text = 1,
+                zlim = c(-1,1),
+                main = paste("Module-trait relationships"))
+
+```
+
+## 1.6 Module trajectories
+### 1.6.1 Pre-merged 10 modules
+
+```{r, fig.width = 20, fig.height = 6}
+
+#A proper box plot
+#####
+#With 10 modules for the supplement
+
+ME_average_exp = moduleEigengenes(t(datExpr), moduleColors)$eigengenes
+
+ME_df <- data.frame(ME_average_exp, "Condition" = metData$Condition, "DPC" = metData$DPC, "ExperimentalDesign" = metData$ExperimentalDesign)
+
+
+## Eigengenes
+Eigengene_module_expression <- function(x){
+df <- dplyr::select(ME_df, paste0("ME", x), "Condition", "DPC", "ExperimentalDesign")
+
+j_brew_colors <- brewer.pal(n = 8, name = "Paired")[c(6,2)]
+
+ggplot(df, mapping = aes(x = DPC, y=get(colnames(df)[1]),  colour=Condition))+
+  geom_point(size=2, aes(group=ExperimentalDesign), position=position_dodge(width=0.3))+
+  geom_boxplot(alpha=0, aes(group=ExperimentalDesign), position="identity")+
+  theme_bw()+
+  geom_smooth(method = "loess", se=T, aes(fill=Condition,  group=Condition), size  = 1, alpha=0.1)+
+  theme(axis.text.x=element_text(angle=50, vjust=0.9, hjust=1, size=12, face="bold"))+
+  labs(title= paste(capitalize(x), "module"), x="", y="Eigengene expression")+
+  theme(plot.title = element_text(size = rel(2), hjust=0.5))+
+  scale_color_manual(values = j_brew_colors)+
+  scale_fill_manual(values = j_brew_colors)+
+  scale_x_continuous(breaks =c(12.5, 14.5, 17.5, 19.5), labels = c("E12.5", "E14.5", "E17.5", "P0"))+
+  coord_cartesian(ylim=c(-0.3, 0.4))+
+   theme(#legend.position = "none",
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())
+}
+
+
+pl <- lapply(c("blue", "turquoise", "brown", "red", "pink", "yellow", "magenta", "black", "green",  "grey"), function(x)
+        Eigengene_module_expression(x))
+
+
+ml <- marrangeGrob(pl, nrow=2, ncol=5, top = "", layout_matrix = rbind(c(1:5), c(6:10)))
+ml
+
+
+```
+
+### 1.6.2 Merged 6 modules
+```{r, fig.width = 10, fig.height = 6, fig.cap="Fig. 2c Module eigengene expression for MIA (red) and control (blue) groups plotted by time-point illustrates expression trajectories across developmental stages, capturing module- and stage-specific differences between MIA and control groups."}
+##### 6 module trajectories ######
+ME_average_exp = moduleEigengenes(t(datExpr), moduleColors_merged)$eigengenes
+
+ME_df <- data.frame(ME_average_exp, "Condition" = metData$Condition, "DPC" = metData$DPC, "ExperimentalDesign" = metData$ExperimentalDesign)
+
+## Eigengenes
+Eigengene_module_expression <- function(x){
+df <- dplyr::select(ME_df, paste0("ME", x), "Condition", "DPC", "ExperimentalDesign")
+
+j_brew_colors <- brewer.pal(n = 8, name = "Paired")[c(6,2)]
+
+ggplot(df, mapping = aes(x = DPC, y=get(colnames(df)[1]),  colour=Condition))+
+  geom_point(size=2, aes(group=ExperimentalDesign), position=position_dodge(width=0.3))+
+  geom_boxplot(alpha=0, aes(group=ExperimentalDesign), position="identity")+
+  theme_bw()+
+  geom_smooth(method = "loess", se=T, aes(fill=Condition,  group=Condition), size  = 1, alpha=0)+
+  theme(axis.text.x=element_text(angle=50, vjust=0.9, hjust=1, size=12, face="bold"))+
+  labs(title= paste(capitalize(x), "module"), x="", y="Eigengene expression")+
+  theme(plot.title = element_text(size = rel(2), hjust=0.5))+
+  scale_color_manual(values = j_brew_colors)+
+  scale_fill_manual(values = j_brew_colors)+
+   coord_cartesian(ylim=c(-0.3, 0.4))+
+  scale_x_continuous(breaks =c(12.5, 14.5, 17.5, 19.5), labels = c("E12.5", "E14.5", "E17.5", "P0"))+
+  theme(legend.position = "none",
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())
+}
+
+
+pl <- lapply(c("blue", "turquoise", "BrRePi", "YeMaBl", "green",  "grey"), function(x)
+        Eigengene_module_expression(x))
+
+
+ml <- marrangeGrob(pl, nrow=2, ncol=3, top = "", layout_matrix = rbind(c(1:3), c(4:6)))
+ml
+
+
+
+```
