@@ -707,3 +707,256 @@ p
 
 ```
 
+## 1.8 Module enrichment among DE genes 
+
+```{r}
+
+#Module gene lists
+gene_lists <- lapply(c("blue", "turquoise", "BrRePi", "YeMaBl", "green",  "grey"), function(x)
+        filter(merged_MM_and_GS_filtered, moduleColors_merged ==x)$gene_name)
+
+blue_genes <- gene_lists[[1]]
+turquoise_genes <- gene_lists[[2]]
+BrRePi_genes <-  gene_lists[[3]]
+YeMaBl_genes <- gene_lists[[4]]
+green_genes <- gene_lists[[5]]
+grey_genes <-  gene_lists[[6]] 
+
+```
+
+```{r}
+#####
+#Hypergeometric test split into upregulated and downregulated. 
+
+gene_set_enrichment_directional <- function(module_color, DPC){
+
+module <- get(paste0(module_color, "_genes"))  
+DPC_dataset <- get(paste0(DPC, "_GLM"))
+
+n_of_genes_in_a_module <- length(module)
+
+n_of_DE_Genes_at_a_DPC <- length(filter(DPC_dataset, PValue < 0.05)$gene_name)
+
+n_of_overlapping_DE_genes <- length(intersect(module, filter(DPC_dataset, PValue < 0.05)$gene_name))
+
+fraction_of_overlapping_DE_genes_with_a_module <- n_of_overlapping_DE_genes/n_of_genes_in_a_module
+
+n_of_upregulated_overlapping_genes <- length(intersect(module, filter(DPC_dataset, PValue < 0.05, logFC > 0)$gene_name))
+n_of_downregulated_overlapping_genes <- length(intersect(module, filter(DPC_dataset, PValue < 0.05, logFC < 0)$gene_name))
+
+#Anotations on the right refer to the post in the link
+  n <- nrow(DPC_dataset)   #Total gene population 15k
+  a <- length(module)  #RNA Seq enriched # 3000
+  b_up <- length(filter(DPC_dataset, PValue < 0.05 & logFC > 0)$gene_name) #Enriched by Chip-Seq 400
+  t_up <- length(intersect(module, filter(DPC_dataset, PValue < 0.05 & logFC > 0)$gene_name)) #Intersected 100
+  b_down <- length(filter(DPC_dataset, PValue < 0.05 & logFC < 0)$gene_name)
+  t_down <- length(intersect(module, filter(DPC_dataset, PValue < 0.05 & logFC < 0)$gene_name))
+
+  #https://stats.stackexchange.com/questions/16247/calculating-the-probability-of-gene-list-overlap-between-an-rna-seq-and-a-chip-c
+#Tests is the number of overlapping genes with a module is enriched comparing to the overall number of genes DE at a DPC.  
+  
+hypergeometric_test_p_value_upregulated <- sum(dhyper(t_up:b_up, a, n - a, b_up))
+
+hypergeometric_test_p_value_downregulated <- sum(dhyper(t_down:b_down, a, n - a, b_down))
+
+x <- c(n_of_DE_Genes_at_a_DPC, n_of_genes_in_a_module, n_of_overlapping_DE_genes,  fraction_of_overlapping_DE_genes_with_a_module, hypergeometric_test_p_value_upregulated,hypergeometric_test_p_value_downregulated,
+  format(n_of_upregulated_overlapping_genes, scientific=FALSE),     
+  format(n_of_downregulated_overlapping_genes, scientific=FALSE))
+
+x <- as.data.frame(x)
+colnames(x) <- "values"
+x$module_color <- rep(module_color, 8)
+x$DPC <- rep(DPC, 8)
+x$stat <- c("n_of_DE_Genes_at_a_DPC", "n_of_genes_in_a_module",  "n_of_overlapping_DE_genes",  "fraction_of_overlapping_DE_genes_with_a_module", "hypergeometric_test_p_value_upregulated", "hypergeometric_test_p_value_downregulated", "n_of_upregulated_overlapping_genes", "n_of_downregulated_overlapping_genes")
+x <- x[,c(4,3,2,1)]
+#x$values <- format(x$values, scientific=FALSE)
+x
+}
+
+
+DPCs <- c("E12.5", "E14.5", "E17.5", "E19.5")
+colors <- c("blue", "turquoise", "BrRePi", "YeMaBl", "green",  "grey")
+
+geneset_enrichment_list_directional <- lapply(DPCs, function(y) lapply(colors, function(x) FUN= gene_set_enrichment_directional(x,y)))
+
+
+#combines the stats for each DPC
+E12.5_enrichment_in_modules_dir <- as.data.frame(rbindlist(geneset_enrichment_list_directional[[1]]))
+E14.5_enrichment_in_modules_dir <- as.data.frame(rbindlist(geneset_enrichment_list_directional[[2]]))
+E17.5_enrichment_in_modules_dir <- as.data.frame(rbindlist(geneset_enrichment_list_directional[[3]]))
+E19.5_enrichment_in_modules_dir <- as.data.frame(rbindlist(geneset_enrichment_list_directional[[4]]))
+
+
+
+#extracts enrichment p values 
+E12.5_module_enrichment_p_values_dir <- filter(E12.5_enrichment_in_modules_dir, stat %in% c("hypergeometric_test_p_value_upregulated", "hypergeometric_test_p_value_downregulated"))
+
+E14.5_module_enrichment_p_values_dir <- filter(E14.5_enrichment_in_modules_dir, stat %in% c("hypergeometric_test_p_value_upregulated", "hypergeometric_test_p_value_downregulated"))
+
+E17.5_module_enrichment_p_values_dir <- filter(E17.5_enrichment_in_modules_dir, stat %in% c("hypergeometric_test_p_value_upregulated", "hypergeometric_test_p_value_downregulated"))
+
+E19.5_module_enrichment_p_values_dir <- filter(E19.5_enrichment_in_modules_dir, stat %in% c("hypergeometric_test_p_value_upregulated", "hypergeometric_test_p_value_downregulated"))
+
+
+
+# dir stands for direction here...
+module_enrich_fun_dir <- function(object, title){
+#object <- E17.5_module_enrichment_p_values_dir
+
+object$values <- -log10(as.numeric(as.character(object$value))) + 0.00001 # small addition fixes color assignment issues for value=0
+
+object$DE_dir <- rep(c("up", "down"), 6)
+
+object_up <- filter(object, DE_dir=="up")
+object_up$module_color <- factor(object_up$module_color, levels=object_up$module_color)
+#Converts Inf value to 25. 
+object_up$values <- ifelse(object_up$values == "Inf", 300, object_up$values)
+
+#Work zone
+
+object_down <- filter(object, DE_dir=="down")
+object_down$module_color <- factor(object_down$module_color, levels=object_down$module_color)  
+object_down$values <- object_down$values*-1
+
+#Converts -Inf value to -25. 
+object_down$values <- ifelse(object_down$values == "-Inf", -300, object_down$values)
+
+colors <- rep(c("blue", "turquoise", "brown", "yellow", "green", "grey"), each=2)
+    
+ggplot()+
+  geom_bar(data = object_up, aes(x=module_color, y= (as.numeric(as.character(values)))), stat = "identity", fill=c("blue", "turquoise", "brown", "yellow", "green", "grey"), color="black")+
+geom_bar(data = object_down, aes(x=module_color, y= (as.numeric(as.character(values)))), stat = "identity", fill=c("blue", "turquoise", "brown", "yellow", "green", "grey"), color="black")+ 
+  theme_bw()+
+  theme(axis.text.x=element_text(angle=40, vjust=1, hjust=1))+
+  labs(x="",y="-log10 (p)", title=title)+
+  theme(plot.title=element_text(hjust=0.5))+
+  geom_hline(aes(yintercept=-log10(0.05)), colour="#990000", linetype="dashed")+
+  geom_hline(aes(yintercept=log10(0.05)), colour="#990000", linetype="dashed")+
+  geom_hline(aes(yintercept=0), colour="black", linetype="solid", size=1)
+}
+
+
+
+
+E12.5_DE_enrichment_plot_dir <- module_enrich_fun_dir(E12.5_module_enrichment_p_values_dir, "E12.5")+theme(axis.text.x = element_blank())
+
+#E12.5_DE_enrichment_plot_dir
+
+
+E14.5_DE_enrichment_plot_dir <- module_enrich_fun_dir(E14.5_module_enrichment_p_values_dir, "E14.5")+theme(axis.text.x = element_blank())
+
+E17.5_DE_enrichment_plot_dir <- module_enrich_fun_dir(E17.5_module_enrichment_p_values_dir, "E17.5")+theme(axis.text.x = element_blank())
+
+E19.5_DE_enrichment_plot_dir <- module_enrich_fun_dir(E19.5_module_enrichment_p_values_dir, "P0")
+
+pl <- list(E12.5_DE_enrichment_plot_dir, E14.5_DE_enrichment_plot_dir, E17.5_DE_enrichment_plot_dir, E19.5_DE_enrichment_plot_dir)
+
+#ml <- marrangeGrob(pl, nrow=2, ncol=2, top=textGrob("", gp=gpar(fontsize=12)), bottom="")
+#ml
+
+#E12.5_DE_enrichment_plot_dir
+#E14.5_DE_enrichment_plot_dir
+#E17.5_DE_enrichment_plot_dir
+#E19.5_DE_enrichment_plot_dir
+
+
+### Saving Hypergeometric test for future reference
+hyp_geo_p_val_df <- rbind(E12.5_module_enrichment_p_values_dir, E14.5_module_enrichment_p_values_dir,
+      E17.5_module_enrichment_p_values_dir, E19.5_module_enrichment_p_values_dir)
+
+hyp_geo_p_val_df$dir <- rep(c("Up", "Down"), 24)
+
+hyp_geo_p_val_df$stat <- NULL
+
+colnames(hyp_geo_p_val_df) <- c("DPC", "module_color", "hypergeometric_test_p_value", "Direction")
+
+hyp_geo_p_val_df <- hyp_geo_p_val_df[,c(1,2,4,3)]
+
+hyp_geo_p_val_df$hypergeometric_test_p_value <- as.numeric(as.character(hyp_geo_p_val_df$hypergeometric_test_p_value)) 
+
+hyp_geo_p_val_df$Significant <- ifelse(hyp_geo_p_val_df$hypergeometric_test_p_value < 0.05, TRUE, FALSE)
+
+#hyp_geo_p_val_df
+
+#setwd("G:/Shared drives/Nord Lab Team Drive/Manuscripts in preparation/MIA_Canales&Estes/Cell #reports/Reviews/Figures/Misc figures")
+#write.csv(hyp_geo_p_val_df, file = "Hypergeometric_P_val_enrichment_Supp_Fig5c.csv")
+
+```
+
+
+```{r, fig.cap="Figure supplement 4. Numbers of DE genes passing P < 0.05 split by modules."}
+
+### Numbers of genes ####
+E12.5_module_enrichment_ns <- filter(E12.5_enrichment_in_modules_dir, stat %in% c("n_of_DE_Genes_at_a_DPC", "n_of_upregulated_overlapping_genes", "n_of_downregulated_overlapping_genes"))
+
+### Numbers of genes ####
+E14.5_module_enrichment_ns <- filter(E14.5_enrichment_in_modules_dir, stat %in% c("n_of_DE_Genes_at_a_DPC", "n_of_upregulated_overlapping_genes", "n_of_downregulated_overlapping_genes"))
+
+### Numbers of genes ####
+E17.5_module_enrichment_ns <- filter(E17.5_enrichment_in_modules_dir, stat %in% c("n_of_DE_Genes_at_a_DPC", "n_of_upregulated_overlapping_genes", "n_of_downregulated_overlapping_genes"))
+
+### Numbers of genes ####
+E19.5_module_enrichment_ns <- filter(E19.5_enrichment_in_modules_dir, stat %in% c("n_of_DE_Genes_at_a_DPC", "n_of_upregulated_overlapping_genes", "n_of_downregulated_overlapping_genes"))
+
+######
+module_enrich_fun_dir_ns <- function(object, title){
+#object <- E12.5_module_enrichment_ns
+  
+object$values <- as.numeric(as.character(object$value)) + 0.001
+
+#Threshold is the number of DE genes < 0.05 at a particular DPC divided by 12. There are 6 modules, and we are considering enrichment in 2 directions = 12. 
+threshold <- as.numeric(as.character(object[1,4]))/12
+
+object$DE_dir <- rep(c("_total","_up", "_down"), 6)
+
+object$module_color_dir <- paste0(object$module_color, object$DE_dir)
+
+object <- filter(object, stat %in% c("n_of_upregulated_overlapping_genes", "n_of_downregulated_overlapping_genes"))
+
+object$module_color_dir <- factor(object$module_color_dir, levels=object$module_color_dir)
+  
+colors <- rep(c("blue", "turquoise", "brown", "yellow", "green", "grey"))
+
+object_up <- filter(object, DE_dir=="_up")
+object_up$module_color <- factor(object_up$module_color, levels=object_up$module_color)
+  
+object_down <- filter(object, DE_dir=="_down")
+object_down$module_color <- factor(object_down$module_color, levels=object_down$module_color)
+
+ggplot()+
+geom_bar(data = object_up, aes(x=module_color, y= as.numeric(as.character(values))), stat = "identity", fill=colors, color="black")+
+geom_bar(data = object_down, aes(x=module_color, y= -as.numeric(as.character(values))), stat = "identity", fill=colors, color="black")+ 
+  theme_bw()+
+  theme(axis.text.x=element_text(angle=40, vjust=1, hjust=1))+
+  labs(x="",y="N of P < 0.05 genes", title=title)+
+  theme(plot.title=element_text(hjust=0.5))+
+  #geom_hline(aes(yintercept=threshold), colour="#990000", linetype="dashed")+
+  #geom_hline(aes(yintercept=-threshold), colour="#990000", linetype="dashed")+
+  geom_hline(aes(yintercept=0), colour="black", linetype="solid", size=1)+
+  theme(legend.key = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.text=element_text(colour="black")
+        )
+}
+
+
+E12.5_DE_enrichment_plot_ns <- module_enrich_fun_dir_ns(E12.5_module_enrichment_ns, "E12.5")
+E14.5_DE_enrichment_plot_ns <- module_enrich_fun_dir_ns(E14.5_module_enrichment_ns, "E14.5")
+E17.5_DE_enrichment_plot_ns <- module_enrich_fun_dir_ns(E17.5_module_enrichment_ns, "E17.5")
+E19.5_DE_enrichment_plot_ns <- module_enrich_fun_dir_ns(E19.5_module_enrichment_ns, "P0")
+
+pl <- list(E12.5_DE_enrichment_plot_ns, E14.5_DE_enrichment_plot_ns, E17.5_DE_enrichment_plot_ns, E19.5_DE_enrichment_plot_ns)
+
+ml <- marrangeGrob(pl, nrow=2, ncol=2, top=textGrob("", gp=gpar(fontsize=12)), bottom="")
+ml
+
+```
+
+```{r, fig.cap="Table of hypergeometric test P values demonstrating enrichment of module genes among DE genes (P < 0.05)"}
+# E19.5 represents P0
+
+knitr::kable(hyp_geo_p_val_df)
+
+####
+```
