@@ -960,3 +960,293 @@ knitr::kable(hyp_geo_p_val_df)
 
 ####
 ```
+
+# 2 Gene Ontology Enrichment
+
+## 2.1 GO BP enrichment
+
+```{r}
+# Function calculating GO enrichment analysis and pulling out significant genes in each GO category 
+# This script uses FDR < 0.05 gene DE threshold. P0 timepoint is omited because it doesn't have any FDR < 0.05 genes.
+
+# q is the DE analysis dataset, 
+# b is "upregulated" or "downregulated",
+# c represent the number of non trivial nodes- maximizes the number of GO category output. Value determined empirically from the error algorithm prompt.
+
+library(topGO)
+
+GO_analysis <- function(q, b, c) {
+
+  background.genes <- q$gene_name
+  geneUniverse <- background.genes
+  
+  if(b=="upregulated"){
+  test.genes <- filter(q, FDR < 0.05, logFC > 0)$gene_name
+  } else if (b=="downregulated"){
+    test.genes <- filter(q, FDR < 0.05, logFC < 0)$gene_name
+  } else {
+    print("Incorect fold change parameter")
+    stop()
+  }
+
+  genesOfInterest <- test.genes
+  geneList <- factor(as.integer(geneUniverse %in% genesOfInterest))
+  names(geneList) <- geneUniverse
+  myGOdata <- new("topGOdata", description="My project", ontology="BP", allGenes=geneList,  annot=annFUN.org,    mapping="org.Mm.eg.db", ID = "alias", nodeSize=20)
+  print(myGOdata)
+  
+resultFisher <- runTest(myGOdata, algorithm = "weight01", statistic = "fisher")
+#resultKS <- runTest(myGOdata, algorithm = "classic", statistic = "ks")
+#resultKS.elim <- runTest(myGOdata, algorithm = "elim", statistic = "ks")
+#classicKS = resultKS, elimKS = resultKS.elim, - add later
+
+allRes <- GenTable(myGOdata, classicFisher = resultFisher, orderBy = "classicFisher", topNodes = c)
+
+#showSigOfNodes(myGOdata, score(resultKS.elim), firstSigNodes = 5, useInfo = 'all')
+#nodes_plot <- recordPlot(showSigOfNodes(myGOdata, score(resultKS.elim), firstSigNodes = 5, useInfo = 'all'))
+
+#Building a df of DE genes belonging to top 20 GO BP caegories
+DE_genes_in_top_GO_cat <- function(r){
+ fisher.go <- allRes[r,1]
+ #print(allRes[x,c(1,2)])
+ fisher.ann.genes <- genesInTerm(myGOdata, whichGO=fisher.go)
+ df <- data.frame(GO.ID = allRes[r,c(1)], Term = allRes[r,c(2)], gene_name=intersect(as.character(fisher.ann.genes[[1]]), q$gene_name))
+ df <- filter(df, gene_name %in% test.genes)
+ df
+}
+
+list(allRes, lapply(1:20, DE_genes_in_top_GO_cat))
+}
+
+
+# Runs GO analysis - this will take a few minutes. It's read from a file to speak up the report generation.
+if(file.exists("GO_df_all.RData")){
+  
+  load("GO_df_all.RData") } else {
+
+GO_E12.5_up <- GO_analysis(E12.5_GLM, "upregulated", 4440)
+GO_E12.5_down <- GO_analysis(E12.5_GLM, "downregulated", 4440)
+
+GO_E14.5_up <- GO_analysis(E14.5_GLM, "upregulated", 4462)
+GO_E14.5_down <- GO_analysis(E14.5_GLM, "downregulated", 4462)
+
+GO_E17.5_up <- GO_analysis(E17.5_GLM, "upregulated", 4431)
+GO_E17.5_down <- GO_analysis(E17.5_GLM, "downregulated", 4431)
+
+# Constructs a data frame for all 3 time points
+GO_E12.5_up_df <- data.frame(GO_E12.5_up[1], DPC=rep("E12.5", nrow(as.data.frame(GO_E12.5_up[1]))),
+                             DE_direction=rep("Up", nrow(as.data.frame(GO_E12.5_up[1]))))
+
+GO_E12.5_down_df <- data.frame(GO_E12.5_down[1], DPC=rep("E12.5", nrow(as.data.frame(GO_E12.5_up[1]))),
+                             DE_direction=rep("Down", nrow(as.data.frame(GO_E12.5_down[1]))))
+
+GO_E14.5_up_df <- data.frame(GO_E14.5_up[1], DPC=rep("E14.5", nrow(as.data.frame(GO_E14.5_up[1]))),
+                             DE_direction=rep("Up", nrow(as.data.frame(GO_E14.5_up[1]))))
+
+GO_E14.5_down_df <- data.frame(GO_E14.5_down[1], DPC=rep("E14.5", nrow(as.data.frame(GO_E14.5_up[1]))),
+                             DE_direction=rep("Down", nrow(as.data.frame(GO_E14.5_down[1]))))
+
+
+GO_E17.5_up_df <- data.frame(GO_E17.5_up[1], DPC=rep("E17.5", nrow(as.data.frame(GO_E17.5_up[1]))),
+                             DE_direction=rep("Up", nrow(as.data.frame(GO_E17.5_up[1]))))
+
+GO_E17.5_down_df <- data.frame(GO_E17.5_down[1], DPC=rep("E17.5", nrow(as.data.frame(GO_E17.5_up[1]))),
+                             DE_direction=rep("Down", nrow(as.data.frame(GO_E17.5_down[1]))))
+
+#
+GO_df_all <- rbind(GO_E12.5_up_df, GO_E12.5_down_df,
+      GO_E14.5_up_df, GO_E14.5_down_df,
+      GO_E17.5_up_df, GO_E17.5_down_df)
+
+GO_df_all$classicFisher <- as.numeric(GO_df_all$classicFisher)
+
+}
+
+
+#Calculate enrichment
+padding = 5
+GO_df_all$Enrichment <- log2((GO_df_all$Significant + padding)/(GO_df_all$Expected + padding))
+
+GO_df_all$GO.ID.Term <- paste(GO_df_all$GO.ID, GO_df_all$Term, sep=".")
+
+#Filters GO terms that meet enrichment criteria
+short.terms <- unique(filter(GO_df_all, classicFisher < 0.05, Enrichment > 0)$GO.ID.Term)
+
+GO_df_all_filtered <- filter(GO_df_all, GO.ID.Term %in% short.terms)
+GO_df_all_filtered$GO.ID.Term <- factor(GO_df_all_filtered$GO.ID.Term, levels = short.terms)
+  
+
+E12.5_GOs_up <- dplyr::select(filter(GO_df_all_filtered, DPC=="E12.5", DE_direction=="Up"),GO.ID.Term, Enrichment)
+E14.5_GOs_up <- dplyr::select(filter(GO_df_all_filtered, DPC=="E14.5", DE_direction=="Up"),GO.ID.Term, Enrichment)
+E17.5_GOs_up <- dplyr::select(filter(GO_df_all_filtered, DPC=="E17.5", DE_direction=="Up"),GO.ID.Term, Enrichment)
+
+E12.5_GOs_down <- dplyr::select(filter(GO_df_all_filtered, DPC=="E12.5", DE_direction=="Down"),GO.ID.Term, Enrichment)
+E14.5_GOs_down <- dplyr::select(filter(GO_df_all_filtered, DPC=="E14.5", DE_direction=="Down"),GO.ID.Term, Enrichment)
+E17.5_GOs_down <- dplyr::select(filter(GO_df_all_filtered, DPC=="E17.5", DE_direction=="Down"),GO.ID.Term, Enrichment)
+
+
+colnames(E12.5_GOs_up) <- c("GO.ID.Term", "E12.5_up")
+colnames(E14.5_GOs_up) <- c("GO.ID.Term", "E14.5_up")
+colnames(E17.5_GOs_up) <- c("GO.ID.Term", "E17.5_up")
+
+
+colnames(E12.5_GOs_down) <- c("GO.ID.Term", "E12.5_down")
+colnames(E14.5_GOs_down) <- c("GO.ID.Term", "E14.5_down")
+colnames(E17.5_GOs_down) <- c("GO.ID.Term", "E17.5_down")
+
+
+# Merges upregulated and downregulated enrichment values
+a <- merge(E12.5_GOs_up, E14.5_GOs_up, by="GO.ID.Term", all = T)
+Upregulated_genes_GO <- merge(a, E17.5_GOs_up, by="GO.ID.Term", all = T)
+
+a <- merge(E12.5_GOs_down, E14.5_GOs_down, by="GO.ID.Term", all = T)
+Downregulated_genes_GO <- merge(a, E17.5_GOs_down, by="GO.ID.Term", all = T)
+
+
+
+GO_df_assembled <- merge(Downregulated_genes_GO, Upregulated_genes_GO,  by="GO.ID.Term") 
+GO_df_assembled <- arrange(GO_df_assembled, GO.ID.Term)
+
+rownames(GO_df_assembled) <- GO_df_assembled$GO.ID.Term
+GO_df_assembled$GO.ID.Term <- NULL
+
+x <- as.matrix(GO_df_assembled)
+
+x[is.na(x)] <- 0
+
+# A heatmap with 1457 categories = not very informative
+
+#paletteLength <- 100
+
+#myBreaks <- c(seq(min(x), 0, length.out=ceiling(paletteLength/2) + 1), 
+#              seq(max(x)/paletteLength, max(x), length.out=floor(paletteLength/2)))
+#myColor <- colorRampPalette(c("#9E0041", "#FEBE6E", "white","#43abea", "#13008e"))(paletteLength)
+
+#pheatmap(x, clustering_distance_rows="correlation", cluster_rows = T, cluster_cols = F, legend = T, fontsize_row  = 9, color = rev(myColor), breaks = myBreaks)
+
+```
+
+
+```{r, fig.cap="Fig.2d Heatmap of enrichment of DE genes for representative gene ontology biological processes (GO BP) by developmental time-point shows stage- and module-specific transcriptional pathology. Y-axis rows show enrichment for GO BP terms among module-specific DE genes (FDR < 0.05). Heatmap color scale represents relative fold enrichment for the GO terms among DE genes. P0 not shown due to insufficient DE gene numbers and absence of GO BP terms passing enrichment criteria."}
+
+# NOTE: Heatmap in Fig. 2d with GO BP categories curated by Karol and Alex. Categories were selected to be representative of WGCNA modules. Heatmaps presented further in this document demonstrate the concordance of this selection with WGCNA GO analysis.
+
+short.terms <- c(
+  
+#MIA induced module (Green + Grey)
+  "GO:0071456.cellular response to hypoxia",
+  "GO:0006096.glycolytic process",
+  "GO:0009615.response to virus",                            
+  "GO:0006954.inflammatory response",
+  "GO:0045766.positive regulation of angiogenesis",
+  
+ #Turquoise
+  "GO:0007215.glutamate receptor signaling pathway",
+  "GO:0042391.regulation of membrane potential",
+ 
+  #Blue 
+  "GO:0022616.DNA strand elongation",
+  "GO:0043044.ATP-dependent chromatin remodeling",
+  "GO:0007049.cell cycle",
+  
+ #YeMaBl
+  "GO:0007064.mitotic sister chromatid cohesion",
+  "GO:0008380.RNA splicing",
+ 
+  #BrRePi
+  "GO:0033108.mitochondrial respiratory chain complex ...",
+  "GO:0006412.translation"
+  )
+
+short.terms <- unique(short.terms)
+
+GO_df_all_filtered <- filter(GO_df_all, GO.ID.Term %in% short.terms)
+
+#length(unique(GO_df_all_filtered$GO.ID.Term))
+
+GO_df_all_filtered$GO.ID.Term <- factor(GO_df_all_filtered$GO.ID.Term, levels = short.terms)
+  
+E12.5_GOs_up <- dplyr::select(filter(GO_df_all_filtered, DPC=="E12.5", DE_direction=="Up"),GO.ID.Term, Enrichment)
+E14.5_GOs_up <- dplyr::select(filter(GO_df_all_filtered, DPC=="E14.5", DE_direction=="Up"),GO.ID.Term, Enrichment)
+E17.5_GOs_up <- dplyr::select(filter(GO_df_all_filtered, DPC=="E17.5", DE_direction=="Up"),GO.ID.Term, Enrichment)
+
+E12.5_GOs_down <- dplyr::select(filter(GO_df_all_filtered, DPC=="E12.5", DE_direction=="Down"),GO.ID.Term, Enrichment)
+E14.5_GOs_down <- dplyr::select(filter(GO_df_all_filtered, DPC=="E14.5", DE_direction=="Down"),GO.ID.Term, Enrichment)
+E17.5_GOs_down <- dplyr::select(filter(GO_df_all_filtered, DPC=="E17.5", DE_direction=="Down"),GO.ID.Term, Enrichment)
+
+
+colnames(E12.5_GOs_up) <- c("GO.ID.Term", "E12.5_up")
+colnames(E14.5_GOs_up) <- c("GO.ID.Term", "E14.5_up")
+colnames(E17.5_GOs_up) <- c("GO.ID.Term", "E17.5_up")
+
+
+colnames(E12.5_GOs_down) <- c("GO.ID.Term", "E12.5_down")
+colnames(E14.5_GOs_down) <- c("GO.ID.Term", "E14.5_down")
+colnames(E17.5_GOs_down) <- c("GO.ID.Term", "E17.5_down")
+
+
+a <- merge(E12.5_GOs_up, E14.5_GOs_up, by="GO.ID.Term")
+Upregulated_genes_GO <- merge(a, E17.5_GOs_up, by="GO.ID.Term")
+
+
+a <- merge(E12.5_GOs_down, E14.5_GOs_down, by="GO.ID.Term")
+Downregulated_genes_GO <- merge(a, E17.5_GOs_down, by="GO.ID.Term")
+
+
+GO_df_assembled <- merge(Downregulated_genes_GO, Upregulated_genes_GO,  by="GO.ID.Term") 
+GO_df_assembled <- arrange(GO_df_assembled, GO.ID.Term)
+
+rownames(GO_df_assembled) <- GO_df_assembled$GO.ID.Term
+GO_df_assembled$GO.ID.Term <- NULL
+
+curated_rownames <- c(
+   
+#MIA induced module (Green + Grey)
+  "Cellular response to hypoxia",
+  "Glycolytic process",
+  #"Negative regulation of cell proliferation",
+  #"Defense response to virus",
+  "Response to virus",
+  "Inflammatory response",
+  "Positive regulation of angiogenesis",
+
+ #Turquoise
+  "Glutamate receptor signaling pathway",
+  "Regulation of membrane potential",
+  
+  #Blue
+  "DNA strand elongation",
+  "ATP-dependent chromatin remodeling",
+  "Cell cycle",
+  
+ #YeMaBl
+  "Mitotic sister chromatid cohesion",
+  "RNA splicing",
+ 
+  #BrRePi
+  "Mitochondrial respiratory chain complex assembly",
+  "Translation"
+)
+
+#Sanity check = PASSED
+# data.frame(rownames(GO_df_assembled), curated_rownames)
+
+rownames(GO_df_assembled) <- curated_rownames 
+
+x <- na.omit(as.matrix(GO_df_assembled))
+
+x[is.infinite(x)] <- 0
+
+#Capping the color scale to 1.5
+x <- ifelse(x < -1.5, -1.5, x)  
+x <- ifelse(x > 1.5, 1.5, x)
+
+paletteLength <- 100
+
+myBreaks <- c(seq(min(x), 0, length.out=ceiling(paletteLength/2) + 1), 
+              seq(max(x)/paletteLength, max(x), length.out=floor(paletteLength/2)))
+myColor <- colorRampPalette(c("#9E0041", "#FEBE6E", "white","#43abea", "#13008e"))(paletteLength)
+
+pheatmap(x, clustering_distance_rows="correlation", cluster_rows = F, cluster_cols = F, legend = T, fontsize_row  = 9, color = rev(myColor), breaks = myBreaks)
+
+```
