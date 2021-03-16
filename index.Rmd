@@ -1,7 +1,7 @@
 ---
-title: "WGCNA and Gene Ontology Enrichment analysis"
+title: "WGCNA and Gene Ontology Enrichment Analysis"
 subtitle: |
-  [Canales et al. 2020 (under review): A temporal map of maternal immune activation-induced changes \n reveals a shift in neurodevelopmentiming and perturbed cortical development in mice](https://www.biorxiv.org/content/10.1101/2020.06.13.150359v1) 
+  | [Canales et al. 2020: A temporal map of maternal immune activation-induced changes reveals a shift in neurodevelopmentiming and perturbed cortical development in mice](https://elifesciences.org/articles/60100) 
  
 author: |
   | Data analysis by:
@@ -606,9 +606,10 @@ pl <- lapply(c("blue", "turquoise", "BrRePi", "YeMaBl", "green",  "grey"), funct
 ml <- marrangeGrob(pl, nrow=2, ncol=3, top = "", layout_matrix = rbind(c(1:3), c(4:6)))
 ml
 
+# 
 #save.image("G:/Shared drives/Nord Lab - Computational #Projects/MIA/Canales_eLIFE_2021_WGCNA_GO/Workspace_3_12_2021.RData")
 
-#load("G:/Shared drives/Nord Lab - Computational #Projects/MIA/Canales_eLIFE_2021_WGCNA_GO/Workspace_3_12_2021.RData")
+#load("G:/Shared drives/Nord Lab - Computational Projects/MIA/Canales_eLIFE_2021_WGCNA_GO/Workspace_3_12_2021.RData")
 
 ```
 
@@ -725,8 +726,7 @@ grey_genes <-  gene_lists[[6]]
 ```
 
 ```{r}
-#####
-#Hypergeometric test split into upregulated and downregulated. 
+# Hypergeometric test split into upregulated and downregulated genes. 
 
 gene_set_enrichment_directional <- function(module_color, DPC){
 
@@ -744,7 +744,7 @@ fraction_of_overlapping_DE_genes_with_a_module <- n_of_overlapping_DE_genes/n_of
 n_of_upregulated_overlapping_genes <- length(intersect(module, filter(DPC_dataset, PValue < 0.05, logFC > 0)$gene_name))
 n_of_downregulated_overlapping_genes <- length(intersect(module, filter(DPC_dataset, PValue < 0.05, logFC < 0)$gene_name))
 
-#Anotations on the right refer to the post in the link
+# Comments on the right refer to the post in the link, not the current dataset
   n <- nrow(DPC_dataset)   #Total gene population 15k
   a <- length(module)  #RNA Seq enriched # 3000
   b_up <- length(filter(DPC_dataset, PValue < 0.05 & logFC > 0)$gene_name) #Enriched by Chip-Seq 400
@@ -753,7 +753,7 @@ n_of_downregulated_overlapping_genes <- length(intersect(module, filter(DPC_data
   t_down <- length(intersect(module, filter(DPC_dataset, PValue < 0.05 & logFC < 0)$gene_name))
 
   #https://stats.stackexchange.com/questions/16247/calculating-the-probability-of-gene-list-overlap-between-an-rna-seq-and-a-chip-c
-#Tests is the number of overlapping genes with a module is enriched comparing to the overall number of genes DE at a DPC.  
+# Tests if the number of overlapping genes with a module is enriched comparing to the overall number of genes DE at a DPC.  
   
 hypergeometric_test_p_value_upregulated <- sum(dhyper(t_up:b_up, a, n - a, b_up))
 
@@ -780,7 +780,7 @@ colors <- c("blue", "turquoise", "BrRePi", "YeMaBl", "green",  "grey")
 geneset_enrichment_list_directional <- lapply(DPCs, function(y) lapply(colors, function(x) FUN= gene_set_enrichment_directional(x,y)))
 
 
-#combines the stats for each DPC
+# Combines the stats for each DPC
 E12.5_enrichment_in_modules_dir <- as.data.frame(rbindlist(geneset_enrichment_list_directional[[1]]))
 E14.5_enrichment_in_modules_dir <- as.data.frame(rbindlist(geneset_enrichment_list_directional[[2]]))
 E17.5_enrichment_in_modules_dir <- as.data.frame(rbindlist(geneset_enrichment_list_directional[[3]]))
@@ -788,7 +788,7 @@ E19.5_enrichment_in_modules_dir <- as.data.frame(rbindlist(geneset_enrichment_li
 
 
 
-#extracts enrichment p values 
+# Extracts enrichment p values 
 E12.5_module_enrichment_p_values_dir <- filter(E12.5_enrichment_in_modules_dir, stat %in% c("hypergeometric_test_p_value_upregulated", "hypergeometric_test_p_value_downregulated"))
 
 E14.5_module_enrichment_p_values_dir <- filter(E14.5_enrichment_in_modules_dir, stat %in% c("hypergeometric_test_p_value_upregulated", "hypergeometric_test_p_value_downregulated"))
@@ -812,13 +812,12 @@ object_up$module_color <- factor(object_up$module_color, levels=object_up$module
 #Converts Inf value to 25. 
 object_up$values <- ifelse(object_up$values == "Inf", 300, object_up$values)
 
-#Work zone
 
 object_down <- filter(object, DE_dir=="down")
 object_down$module_color <- factor(object_down$module_color, levels=object_down$module_color)  
 object_down$values <- object_down$values*-1
 
-#Converts -Inf value to -25. 
+# Converts -Inf value to -300. 
 object_down$values <- ifelse(object_down$values == "-Inf", -300, object_down$values)
 
 colors <- rep(c("blue", "turquoise", "brown", "yellow", "green", "grey"), each=2)
@@ -837,11 +836,7 @@ geom_bar(data = object_down, aes(x=module_color, y= (as.numeric(as.character(val
 
 
 
-
 E12.5_DE_enrichment_plot_dir <- module_enrich_fun_dir(E12.5_module_enrichment_p_values_dir, "E12.5")+theme(axis.text.x = element_blank())
-
-#E12.5_DE_enrichment_plot_dir
-
 
 E14.5_DE_enrichment_plot_dir <- module_enrich_fun_dir(E14.5_module_enrichment_p_values_dir, "E14.5")+theme(axis.text.x = element_blank())
 
@@ -878,9 +873,6 @@ hyp_geo_p_val_df$Significant <- ifelse(hyp_geo_p_val_df$hypergeometric_test_p_va
 
 #hyp_geo_p_val_df
 
-#setwd("G:/Shared drives/Nord Lab Team Drive/Manuscripts in preparation/MIA_Canales&Estes/Cell #reports/Reviews/Figures/Misc figures")
-#write.csv(hyp_geo_p_val_df, file = "Hypergeometric_P_val_enrichment_Supp_Fig5c.csv")
-
 ```
 
 
@@ -889,22 +881,22 @@ hyp_geo_p_val_df$Significant <- ifelse(hyp_geo_p_val_df$hypergeometric_test_p_va
 ### Numbers of genes ####
 E12.5_module_enrichment_ns <- filter(E12.5_enrichment_in_modules_dir, stat %in% c("n_of_DE_Genes_at_a_DPC", "n_of_upregulated_overlapping_genes", "n_of_downregulated_overlapping_genes"))
 
-### Numbers of genes ####
+
 E14.5_module_enrichment_ns <- filter(E14.5_enrichment_in_modules_dir, stat %in% c("n_of_DE_Genes_at_a_DPC", "n_of_upregulated_overlapping_genes", "n_of_downregulated_overlapping_genes"))
 
-### Numbers of genes ####
+
 E17.5_module_enrichment_ns <- filter(E17.5_enrichment_in_modules_dir, stat %in% c("n_of_DE_Genes_at_a_DPC", "n_of_upregulated_overlapping_genes", "n_of_downregulated_overlapping_genes"))
 
-### Numbers of genes ####
+
 E19.5_module_enrichment_ns <- filter(E19.5_enrichment_in_modules_dir, stat %in% c("n_of_DE_Genes_at_a_DPC", "n_of_upregulated_overlapping_genes", "n_of_downregulated_overlapping_genes"))
 
-######
+
 module_enrich_fun_dir_ns <- function(object, title){
 #object <- E12.5_module_enrichment_ns
   
 object$values <- as.numeric(as.character(object$value)) + 0.001
 
-#Threshold is the number of DE genes < 0.05 at a particular DPC divided by 12. There are 6 modules, and we are considering enrichment in 2 directions = 12. 
+# threshold is the number of DE genes < 0.05 at a particular DPC divided by 12. There are 6 modules, and we are considering enrichment in 2 directions = 12. 
 threshold <- as.numeric(as.character(object[1,4]))/12
 
 object$DE_dir <- rep(c("_total","_up", "_down"), 6)
@@ -963,11 +955,11 @@ knitr::kable(hyp_geo_p_val_df)
 
 # 2 Gene Ontology Enrichment
 
-## 2.1 GO BP enrichment
+## 2.1 GO BP enrichment among DE genes
 
 ```{r}
 # Function calculating GO enrichment analysis and pulling out significant genes in each GO category 
-# This script uses FDR < 0.05 gene DE threshold. P0 timepoint is omited because it doesn't have any FDR < 0.05 genes.
+# This script uses FDR < 0.05 gene DE threshold. P0 time point is omitted because it doesn't have any FDR < 0.05 genes.
 
 # q is the DE analysis dataset, 
 # b is "upregulated" or "downregulated",
@@ -1249,4 +1241,707 @@ myColor <- colorRampPalette(c("#9E0041", "#FEBE6E", "white","#43abea", "#13008e"
 
 pheatmap(x, clustering_distance_rows="correlation", cluster_rows = F, cluster_cols = F, legend = T, fontsize_row  = 9, color = rev(myColor), breaks = myBreaks)
 
+```
+
+## 2.2 GO BP in modules
+
+```{r}
+
+GO_analysis_modules <- function(test.genes, c) {
+#test.genes <- blue_genes
+  
+library(topGO)
+#Defines a vector containing all gene names
+  geneUniverse <- unique(c(as.character(E12.5_GLM$gene_name), as.character(E14.5_GLM$gene_name), as.character(E17.5_GLM$gene_name), as.character(E19.5_GLM$gene_name)))
+  
+  genesOfInterest <- test.genes
+  geneList <- factor(as.integer(geneUniverse %in% genesOfInterest))
+  names(geneList) <- geneUniverse
+  myGOdata <- new("topGOdata", description="My project", ontology="BP", allGenes=geneList,  annot=annFUN.org,    mapping="org.Mm.eg.db", ID = "alias", nodeSize=20)
+  print(myGOdata)
+  
+resultFisher <- runTest(myGOdata, algorithm = "weight01", statistic = "fisher")
+
+allRes <- GenTable(myGOdata, classicFisher = resultFisher, orderBy = "classicFisher", topNodes = c)
+
+#showSigOfNodes(myGOdata, score(resultKS.elim), firstSigNodes = 5, useInfo = 'all')
+#nodes_plot <- recordPlot(showSigOfNodes(myGOdata, score(resultKS.elim), firstSigNodes = 5, useInfo = 'all'))
+
+#Building a df of DE genes belonging to top 20 GO BP caegories
+DE_genes_in_top_GO_cat <- function(r){
+ fisher.go <- allRes[r,1]
+ #print(allRes[x,c(1,2)])
+ fisher.ann.genes <- genesInTerm(myGOdata, whichGO=fisher.go)
+ df <- data.frame(GO.ID = allRes[r,c(1)], Term = allRes[r,c(2)], gene_name=intersect(as.character(fisher.ann.genes[[1]]), test.genes))
+ df <- filter(df, gene_name %in% test.genes)
+ df
+}
+
+list(allRes, lapply(1:20, DE_genes_in_top_GO_cat))
+}
+
+```
+
+
+```{r}
+
+# Runs GO BP enrichment for each time point and modules
+
+E12.5_GLM <- E12.5_GLM_module
+E14.5_GLM <- E14.5_GLM_module
+E17.5_GLM <- E17.5_GLM_module
+E19.5_GLM <- E19.5_GLM_module
+
+#Function calculating GO enrichment in each module for DE genes
+#It removes modules with no overlapping genes.
+
+GO_df_all_module_gene_subset <- function(intersection_genes){
+
+#This is checking if any intersection with gene module producesses no genes. 
+module_color_genes <- c("blue", "turquoise", "BrRePi", "YeMaBl", "green", "grey")
+
+intersect_gene_counts <- rbindlist(lapply(module_color_genes, function(x) FUN= {
+         data.frame("n_of_intersected_genes"=length(intersect(get(paste0(x, "_genes")), intersection_genes)), "n_of_genes_in_a_module" = length(get(paste0(x, "_genes"))), "module_color"=x)
+         }))
+
+#Excludes modules with less than 5 overlapping genes
+test_modules <- as.character(filter(intersect_gene_counts, n_of_intersected_genes > 5)$module_color)
+
+# Skip pararellization if your system has limited memory. This commented out parLapply code needs some packages exported to be functional... 
+#ll <- list(GO_analysis_modules)
+#clust <- makeCluster(3)
+#clusterExport(clust, varlist=c("GO_analysis_modules", "E12.5_GLM", "E14.5_GLM", "E17.5_GLM", #"E19.5_GLM", "blue_genes", "turquoise_genes", "BrRePi_genes", "YeMaBl_genes", "green_genes", #"grey_genes"), envir=environment())
+
+
+module_GO_list <- lapply(test_modules, function(x) FUN= {
+  l_test <- GO_analysis_modules(intersect(get(paste0(x, "_genes")), intersection_genes), 4255)
+  data.frame(l_test[1], module_color=rep(x, nrow(as.data.frame(l_test[1]))))
+  }
+  )
+
+#stopCluster(clust)
+
+GO_df_all <- as.data.frame(rbindlist(module_GO_list))
+
+GO_df_all$classicFisher <- as.numeric(GO_df_all$classicFisher)
+
+padding = 5
+
+GO_df_all$Enrichment <- log2((GO_df_all$Significant + padding)/(GO_df_all$Expected + padding))
+
+GO_df_all$GO.ID.Term <- paste(GO_df_all$GO.ID, GO_df_all$Term, sep=".")
+GO_df_all
+
+}
+
+
+# Lists of DE genes
+E12.5_upregulated_genes <- filter(E12.5_GLM, FDR < 0.05, logFC > 0)$gene_name
+E12.5_downregulated_genes <- filter(E12.5_GLM, FDR < 0.05, logFC < 0)$gene_name
+
+E14.5_upregulated_genes <- filter(E14.5_GLM, FDR < 0.05, logFC > 0)$gene_name
+E14.5_downregulated_genes <- filter(E14.5_GLM, FDR < 0.05, logFC < 0)$gene_name
+
+E17.5_upregulated_genes <- filter(E17.5_GLM, FDR < 0.05, logFC > 0)$gene_name
+E17.5_downregulated_genes <- filter(E17.5_GLM, FDR < 0.05, logFC < 0)$gene_name
+
+E19.5_upregulated_genes <- filter(E19.5_GLM, FDR < 0.05, logFC > 0)$gene_name
+E19.5_downregulated_genes <- filter(E19.5_GLM, FDR < 0.05, logFC < 0)$gene_name
+
+
+# Numbers of intersected genes in each module
+module_color_genes <- c("blue", "turquoise", "BrRePi", "YeMaBl", "green", "grey")
+
+intersect_gene_counts <- function(intersection_genes){
+   rbindlist(lapply(module_color_genes, function(x) FUN= {
+         data.frame("n_of_intersected_genes"=length(intersect(get(paste0(x, "_genes")), intersection_genes)), "n_of_genes_in_a_module" = length(get(paste0(x, "_genes"))), "module_color"=x)
+         }))
+}
+
+E12.5_up_module_ns <- intersect_gene_counts(E12.5_upregulated_genes)
+E12.5_down_module_ns <- intersect_gene_counts(E12.5_downregulated_genes)
+E14.5_up_module_ns <- intersect_gene_counts(E14.5_upregulated_genes)
+E14.5_down_module_ns <- intersect_gene_counts(E14.5_downregulated_genes)
+E17.5_up_module_ns <- intersect_gene_counts(E17.5_upregulated_genes)
+E17.5_down_module_ns <- intersect_gene_counts(E17.5_downregulated_genes)
+E19.5_up_module_ns <- intersect_gene_counts(E19.5_upregulated_genes)
+E19.5_down_module_ns <- intersect_gene_counts(E19.5_downregulated_genes)
+
+
+n_of_intersected_genes_in_modules <- data.frame(E12.5_up_module_ns$module_color, E12.5_up_module_ns$n_of_genes_in_a_module, E12.5_up_module_ns$n_of_intersected_genes, 
+           E12.5_down_module_ns$n_of_intersected_genes,
+           E14.5_up_module_ns$n_of_intersected_genes,
+           E14.5_down_module_ns$n_of_intersected_genes,
+           E17.5_up_module_ns$n_of_intersected_genes,
+           E17.5_down_module_ns$n_of_intersected_genes,
+           E19.5_up_module_ns$n_of_intersected_genes,
+           E19.5_down_module_ns$n_of_intersected_genes
+           )
+
+colnames(n_of_intersected_genes_in_modules) <- c("module", "n_of_genes_in_a_module", "E12.5_up_insct", "E12.5_down_insct", "E14.5_up_insct", "E14.5_down_insct", "E17.5_up_insct", "E17.5_down_insct", "E19.5_up_insct", "E19.5_down_insct" )
+
+#n_of_intersected_genes_in_modules
+
+# Note: The process of calculating GO BP enrichment analysis takes a lot of time. In order to speed up the process of knitting this report, these objects are loaded from hard drive. Objects recalculated at the time of composing this report well replicate the results published in the manuscript, but minor differences, likely arising from updating R and its packages, result in some small differences in the figure layout. We commit to transparency and reproducibility of research. In our Github repository we provide the newly created R objects containing GO BP enrichment results, and the development versions (*_dev.RData) used for generating figures in our manuscript. If you are reading this, and going through this analysis, you are crazy. Best KC :)
+
+if(all(file.exists("E12.5_up_GO_df_all_module_dev.RData", 
+               "E12.5_down_GO_df_all_module_dev.RData",
+               "E14.5_up_GO_df_all_module_dev.RData",
+               "E14.5_down_GO_df_all_module_dev.RData",
+               "E17.5_up_GO_df_all_module_dev.RData",
+               "E17.5_down_GO_df_all_module_dev.RData"))){
+  
+  load("E12.5_up_GO_df_all_module_dev.RData")
+  load("E12.5_down_GO_df_all_module_dev.RData")
+  load("E14.5_up_GO_df_all_module_dev.RData")
+  load("E14.5_down_GO_df_all_module_dev.RData")
+  load("E17.5_up_GO_df_all_module_dev.RData")
+  load("E17.5_down_GO_df_all_module_dev.RData")
+               } else {
+
+E12.5_up_GO_df_all_module <- GO_df_all_module_gene_subset(E12.5_upregulated_genes)
+E12.5_down_GO_df_all_module <- GO_df_all_module_gene_subset(E12.5_downregulated_genes)
+
+E14.5_up_GO_df_all_module <- GO_df_all_module_gene_subset(E14.5_upregulated_genes)
+E14.5_down_GO_df_all_module <- GO_df_all_module_gene_subset(E14.5_downregulated_genes)
+
+E17.5_up_GO_df_all_module <- GO_df_all_module_gene_subset(E17.5_upregulated_genes)
+E17.5_down_GO_df_all_module <- GO_df_all_module_gene_subset(E17.5_downregulated_genes)
+
+               }
+
+```
+
+
+```{r}
+# NOTE: Code is the next X chunks is part of the exploratory data analysis, and is provided to demonstrate the less processed and curated results of GO BP analysis
+
+
+# A development version of R session.
+#load("G:/Shared drives/Nord Lab Team Drive/Manuscripts in preparation/MIA_Canales&Estes/Cell reports/Reviews/Figures/Temp_4_WGCNA_GO_FDR.RData")
+
+
+#####
+#Let's identify the top 10 GO categories enriched in each module.
+top_Go_categories <- function(DPC_df_all){
+GO_df_all <- DPC_df_all
+
+test_modules <- as.character(unique(GO_df_all$module_color))
+colors <- test_modules
+
+#lapply is fun, I should be using it more often :)
+top_module_GOs <- lapply(test_modules, function(x) FUN= as.data.frame(filter(GO_df_all, module_color==x & Enrichment > 0 & classicFisher < 0.05)$GO.ID.Term[1:10]))
+
+top_module_GOs <- rbindlist(top_module_GOs)
+
+df <- data.frame("top_GO_categories"=top_module_GOs[,1], "module_colors"=rep(test_modules, each=10))
+
+colnames(df) <- c("top_GO_categories", "module_colors")
+
+df
+}
+
+
+#Top Go categories
+E12.5_up_GO_df_top_categories <- top_Go_categories(E12.5_up_GO_df_all_module)
+E12.5_down_GO_df_top_categories <- top_Go_categories(E12.5_down_GO_df_all_module)
+
+E14.5_up_GO_df_top_categories <- top_Go_categories(E14.5_up_GO_df_all_module)
+E14.5_down_GO_df_top_categories <- top_Go_categories(E14.5_down_GO_df_all_module)
+
+E17.5_up_GO_df_top_categories <- top_Go_categories(E17.5_up_GO_df_all_module)
+E17.5_down_GO_df_top_categories <- top_Go_categories(E17.5_down_GO_df_all_module)
+
+```
+
+```{r}
+# DE module heatmap function
+
+DE_module_heatmap <- function(DPC_df_all, top_module_GOs, title){
+
+GOs <- unique(top_module_GOs$top_GO_categories)  
+    
+GO_df_all <- DPC_df_all  
+  
+GO_df_all_filtered <- filter(GO_df_all, GO.ID.Term %in% GOs & module_color %in% top_module_GOs$module_colors)
+
+
+GO_df_all_filtered$GO.ID.Term <- factor(GO_df_all_filtered$GO.ID.Term, levels = GOs)
+
+test_modules <- as.character(unique(GO_df_all_filtered$module_color))
+
+filtered_module_GOs_list <- lapply(test_modules, function(x) FUN= {
+  p <- dplyr::select(filter(GO_df_all_filtered, module_color==x),GO.ID.Term, Enrichment)
+  colnames(p) <- c("GO.ID.Term", x)
+  p
+})
+
+merged_top_module_GOs <- Reduce(function(x, y) merge(x, y, by="GO.ID.Term", all=TRUE), filtered_module_GOs_list)
+
+rownames(merged_top_module_GOs) <- merged_top_module_GOs$GO.ID.Term
+merged_top_module_GOs$GO.ID.Term <- NULL
+
+x <- na.omit(as.matrix(merged_top_module_GOs))
+
+x[is.infinite(x)] <- 0   # consider applying a max/min values in a matrix to -Inf and + Inf???
+
+myBreaks <- c(seq(min(x), 0, length.out=ceiling(paletteLength/2) + 1), 
+              seq(max(x)/paletteLength, max(x), length.out=floor(paletteLength/2)))
+
+myColor <- colorRampPalette(c("#9E0041", "#FEBE6E", "white","#43abea", "#13008e"))(paletteLength)
+
+general_modu_GO_clustered_modules <- pheatmap(x, clustering_distance_rows="correlation", cluster_rows = T, cluster_cols = T, legend = T, fontsize_row  = 9, color = rev(myColor), breaks = myBreaks, main=title)
+
+}
+```
+
+### 2.2.1 Stage-specific heatmaps
+
+```{r, fig.cap="Fig.2 Figure supplement 2. Stage-specific heatmaps of GO BP enrichment analysis of upregulated and downregulated differentially expressed genes in WGCNA modules. Colors signify relative log2 fold enrichment."}
+# Removes modules with less than 5 overlapping DE genes.
+# I added a manual curation step to remove GO BP categories that don't make sense for brain function
+# The manual curation is performed through a negative selection
+
+`%nin%` = Negate(`%in%`)
+
+#E12.5_up
+modules_to_use <- filter(n_of_intersected_genes_in_modules, E12.5_up_insct > 5)$module
+GO_cats <- filter(E12.5_up_GO_df_top_categories, module_colors %in% modules_to_use)
+GO_cats <- GO_cats[c(1, 2, 4, 6, 7, 8, 9, 10:17, 21:24, 26:30),]
+E12.5_up_module_pheatmap <- DE_module_heatmap(E12.5_up_GO_df_all_module, GO_cats, "E12.5 upregulated")
+#E12.5_up_module_pheatmap
+
+
+#E12.5_down has clustering issue. Fixed below
+#modules_to_use <- filter(n_of_intersected_genes_in_modules, E12.5_down_insct > 5)$module
+#GO_cats <- filter(E12.5_down_GO_df_top_categories, module_colors %in% modules_to_use)
+#GO_cats <- GO_cats[1:nrow(GO_cats) %nin% c(2),]
+#E12.5_down_module_pheatmap <- DE_module_heatmap(E12.5_down_GO_df_all_module, GO_cats, "E12.5 #downregulated")
+#E12.5_down_module_pheatmap
+
+
+# E12.5 down - fixed
+DE_module_heatmap_mod <- function(DPC_df_all, top_module_GOs, title){
+
+GOs <- unique(top_module_GOs$top_GO_categories)  
+GO_df_all <- DPC_df_all  
+GO_df_all_filtered <- filter(GO_df_all, GO.ID.Term %in% GOs & module_color %in% top_module_GOs$module_colors)
+
+
+GO_df_all_filtered$GO.ID.Term <- factor(GO_df_all_filtered$GO.ID.Term, levels = GOs)
+
+test_modules <- as.character(unique(GO_df_all_filtered$module_color))
+
+filtered_module_GOs_list <- lapply(test_modules, function(x) FUN= {
+  p <- dplyr::select(filter(GO_df_all_filtered, module_color==x),GO.ID.Term, Enrichment)
+  colnames(p) <- c("GO.ID.Term", x)
+  p
+})
+
+merged_top_module_GOs <- Reduce(function(x, y) merge(x, y, by="GO.ID.Term", all=TRUE), filtered_module_GOs_list)
+
+merged_top_module_GOs <- arrange(merged_top_module_GOs, desc(grey))
+
+rownames(merged_top_module_GOs) <- merged_top_module_GOs$GO.ID.Term
+
+
+merged_top_module_GOs$GO.ID.Term <- NULL
+
+x <- as.matrix(merged_top_module_GOs)
+
+x[is.na(x)] <- 0
+
+x[is.infinite(x)] <- 0   
+
+myBreaks <- c(seq(min(x), 0, length.out=ceiling(paletteLength/2) + 1), 
+              seq(max(x)/paletteLength, max(x), length.out=floor(paletteLength/2)))
+
+myColor <- colorRampPalette(c("#9E0041", "#FEBE6E", "white","#43abea", "#13008e"))(paletteLength)
+
+general_modu_GO_clustered_modules <- pheatmap(x, clustering_distance_rows="correlation", cluster_rows = F, cluster_cols = F, legend = T, fontsize_row  = 9, color = rev(myColor), breaks = myBreaks, main=title)
+
+}
+
+#E12.5_down
+modules_to_use <- filter(n_of_intersected_genes_in_modules, E12.5_down_insct > 5)$module
+GO_cats <- filter(E12.5_down_GO_df_top_categories, module_colors %in% modules_to_use)
+GO_cats <- GO_cats[1:nrow(GO_cats) %nin% c(2),]
+E12.5_down_module_pheatmap <- DE_module_heatmap_mod(E12.5_down_GO_df_all_module, GO_cats, "E12.5 downregulated")
+#E12.5_down_module_pheatmap
+
+
+
+
+#E14.5_up 
+modules_to_use <- filter(n_of_intersected_genes_in_modules, E14.5_up_insct > 5)$module
+GO_cats <- filter(E14.5_up_GO_df_top_categories, module_colors %in% modules_to_use)
+GO_cats <- GO_cats[1:nrow(GO_cats) %nin% c(9, 10, 43, 54, 55, 56, 60),]
+E14.5_up_module_pheatmap <- DE_module_heatmap(E14.5_up_GO_df_all_module, GO_cats, "E14.5 upregulated")
+#E14.5_up_module_pheatmap
+
+
+#E14.5_down
+modules_to_use <- filter(n_of_intersected_genes_in_modules, E14.5_down_insct > 5)$module
+GO_cats <- filter(E14.5_down_GO_df_top_categories, module_colors %in% modules_to_use)
+GO_cats <- GO_cats[1:nrow(GO_cats) %nin% c(""),] # All cats were manually qualified
+E14.5_down_module_pheatmap <- DE_module_heatmap(E14.5_down_GO_df_all_module, GO_cats, "E14.5 downregulated")
+#E14.5_down_module_pheatmap
+
+
+#E17.5_up
+modules_to_use <- filter(n_of_intersected_genes_in_modules, E17.5_up_insct > 5)$module
+GO_cats <- filter(E17.5_up_GO_df_top_categories, module_colors %in% modules_to_use)
+GO_cats <- GO_cats[1:nrow(GO_cats) %nin% c(45, 46, 47),]
+E17.5_up_module_pheatmap <- DE_module_heatmap(E17.5_up_GO_df_all_module, GO_cats, "E17.5 upregulated")
+#E17.5_up_module_pheatmap
+
+#E17.5_down
+modules_to_use <- filter(n_of_intersected_genes_in_modules, E17.5_down_insct > 5)$module
+GO_cats <- filter(E17.5_down_GO_df_top_categories, module_colors %in% modules_to_use)
+GO_cats <- GO_cats[1:nrow(GO_cats) %nin% c(20, 26, 56, 58, 60),]
+E17.5_down_module_pheatmap <- DE_module_heatmap(E17.5_down_GO_df_all_module, GO_cats, "E17.5 downregulated")
+#E17.5_down_module_pheatmap
+
+# P0 time point was analyzed in a similar fashion, considering DE genes with P < 0.05 
+
+```
+
+
+```{r}
+#
+E12.5_up_GO_df_all_module$Direction <- rep("Up", nrow(E12.5_up_GO_df_all_module))
+E12.5_up_GO_df_all_module$DPC <- rep("E12.5", nrow(E12.5_up_GO_df_all_module))
+
+E12.5_down_GO_df_all_module$Direction <- rep("Down", nrow(E12.5_down_GO_df_all_module))
+E12.5_down_GO_df_all_module$DPC <- rep("E12.5", nrow(E12.5_down_GO_df_all_module))
+
+
+E14.5_up_GO_df_all_module$Direction <- rep("Up", nrow(E14.5_up_GO_df_all_module))
+E14.5_up_GO_df_all_module$DPC <- rep("E14.5", nrow(E14.5_up_GO_df_all_module))
+
+E14.5_down_GO_df_all_module$Direction <- rep("Down", nrow(E14.5_down_GO_df_all_module))
+E14.5_down_GO_df_all_module$DPC <- rep("E14.5", nrow(E14.5_down_GO_df_all_module))
+
+E17.5_up_GO_df_all_module$Direction <- rep("Up", nrow(E17.5_up_GO_df_all_module))
+E17.5_up_GO_df_all_module$DPC <- rep("E17.5", nrow(E17.5_up_GO_df_all_module))
+
+E17.5_down_GO_df_all_module$Direction <- rep("Down", nrow(E17.5_down_GO_df_all_module))
+E17.5_down_GO_df_all_module$DPC <- rep("E17.5", nrow(E17.5_down_GO_df_all_module))
+
+
+GO_df_all_module_all <- rbind(E12.5_up_GO_df_all_module,
+                              E12.5_down_GO_df_all_module,
+                              E14.5_up_GO_df_all_module,
+                              E14.5_down_GO_df_all_module,
+                              E17.5_up_GO_df_all_module,
+                              E17.5_down_GO_df_all_module)
+
+```
+
+### 2.2.2 Module-specific heatmaps
+```{r, fig.cap="Module-specific heatmaps of GO BP enrichment analysis of upregulated and downregulated differentially expressed genes in WGCNA modules. Only cells with enrichment P < 0.05 are colored. P values are displayed in heatmap cells. Colors signify relative log2 fold enrichment."}
+# GO BP heatmaps with non-significant categories grayed out 
+
+# For each module displays the top 40 GO terms. Sig P values (Fisher <  0.05) have displayed values.
+# This is very useful for discovering relevant enriched GO terms.
+
+representative_GO_terms_pheatmap <- function(mcol, title){
+
+short.terms <- arrange(filter(GO_df_all_module_all, module_color == mcol, classicFisher < 0.05, Enrichment > 0), classicFisher)$GO.ID.Term[1:40]
+
+a1 <- filter(E12.5_up_GO_df_all_module, module_color == mcol, GO.ID.Term %in% short.terms)[,c(6,8,9)]
+b1 <- filter(E12.5_down_GO_df_all_module, module_color == mcol, GO.ID.Term %in% short.terms)[,c(6, 8,9)]
+c1 <- filter(E14.5_up_GO_df_all_module, module_color == mcol, GO.ID.Term %in% short.terms)[,c(6, 8,9)]
+d1 <- filter(E14.5_down_GO_df_all_module, module_color == mcol, GO.ID.Term %in% short.terms)[,c(6, 8,9)]
+e1 <- filter(E17.5_up_GO_df_all_module, module_color == mcol, GO.ID.Term %in% short.terms)[,c(6, 8,9)]
+f1 <- filter(E17.5_down_GO_df_all_module, module_color == mcol, GO.ID.Term %in% short.terms)[,c(6, 8,9)]
+
+
+## Setting Enrichment to 0 if P > 0.05
+a1$Enrichment <- ifelse(a1$classicFisher > 0.05, 0, a1$Enrichment)
+b1$Enrichment <- ifelse(b1$classicFisher > 0.05, 0, b1$Enrichment)
+c1$Enrichment <- ifelse(c1$classicFisher > 0.05, 0, c1$Enrichment)
+d1$Enrichment <- ifelse(d1$classicFisher > 0.05, 0, d1$Enrichment)
+e1$Enrichment <- ifelse(e1$classicFisher > 0.05, 0, e1$Enrichment)
+f1$Enrichment <- ifelse(f1$classicFisher > 0.05, 0, f1$Enrichment)
+
+
+### Enrichment matrix
+df <- Reduce(function(x, y) merge(x, y, by="GO.ID.Term", all=TRUE), list(b1[,c(2,3)], d1[,c(2,3)], f1[,c(2,3)], a1[,c(2,3)], c1[,c(2,3)], e1[,c(2,3)]))
+
+colnames(df) <- c("GO.ID.Term", "Down_E12.5", "Down_E14.5", "Down_E17.5", "Up_E12.5", "Up_E14.5", "Up_E17.5")
+
+df[is.na(df)] <- 0
+rownames(df) <- df$GO.ID.Term
+df$GO.ID.Term <- NULL
+
+x <- na.omit(as.matrix(df))
+
+x[is.infinite(x)] <- 0   # consider applying a max/min values in a matrix to -Inf and + Inf???
+
+### P value matrix
+df_p <- Reduce(function(x, y) merge(x, y, by="GO.ID.Term", all=TRUE), list(b1[,c(1,3)], d1[,c(1,3)], f1[,c(1,3)],  a1[,c(1,3)], c1[,c(1,3)], e1[,c(1,3)]))
+
+colnames(df_p) <- c("GO.ID.Term", "Down_E12.5", "Down_E14.5", "Down_E17.5", "Up_E12.5", "Up_E14.5", "Up_E17.5")
+
+rownames(df_p) <- df_p$GO.ID.Term
+df_p$GO.ID.Term <- NULL
+
+df_p[df_p > 0.05] <- ""
+df_p[is.na(df_p)] <- ""
+
+
+myBreaks <- c(0,seq(max(x)/paletteLength, max(x), length.out=floor(paletteLength/2)))
+
+myColor <- colorRampPalette(c("#9E0041", "#FEBE6E", "white"))(paletteLength)
+
+pheatmap(x, clustering_distance_rows="correlation", cluster_rows = T, cluster_cols = F, legend = T, fontsize_row  = 9, color = rev(myColor), display_numbers = df_p, main=title)
+
+}
+
+
+representative_GO_terms_pheatmap("blue", "Blue module")
+representative_GO_terms_pheatmap("turquoise", "Turquoise module")
+representative_GO_terms_pheatmap("BrRePi", "BrRePi module")
+representative_GO_terms_pheatmap("YeMaBl", "YeMaBl module")
+representative_GO_terms_pheatmap("green", "Green module")
+representative_GO_terms_pheatmap("grey", "Grey module")
+
+
+```
+
+## 2.3 Initial response
+
+### 2.3.1 Green module
+```{r, fig.width = 7, fig.height = 8}
+# Fig 3b
+
+### Green module alone ###
+
+mcol <- "green"
+
+# Finds top 50 terms enriched in the green module at E12.5 and E14.5 among the upregulated genes. 
+short.terms <- arrange(filter(GO_df_all_module_all, module_color == mcol, Direction == "Up", DPC %in% c("E12.5", "E14.5"), classicFisher < 0.05, Enrichment > 0), classicFisher)$GO.ID.Term[1:50]
+
+a1 <- filter(E12.5_up_GO_df_all_module, module_color == mcol, GO.ID.Term %in% short.terms)[,c(6,8,9)]
+b1 <- filter(E12.5_down_GO_df_all_module, module_color == mcol, GO.ID.Term %in% short.terms)[,c(6, 8,9)]
+c1 <- filter(E14.5_up_GO_df_all_module, module_color == mcol, GO.ID.Term %in% short.terms)[,c(6, 8,9)]
+d1 <- filter(E14.5_down_GO_df_all_module, module_color == mcol, GO.ID.Term %in% short.terms)[,c(6, 8,9)]
+
+# Setting Enrichment to 0 if P > 0.05
+a1$Enrichment <- ifelse(a1$classicFisher > 0.05, 0, a1$Enrichment)
+b1$Enrichment <- ifelse(b1$classicFisher > 0.05, 0, b1$Enrichment)
+c1$Enrichment <- ifelse(c1$classicFisher > 0.05, 0, c1$Enrichment)
+d1$Enrichment <- ifelse(d1$classicFisher > 0.05, 0, d1$Enrichment)
+
+
+# Enrichment matrix
+df <- Reduce(function(x, y) merge(x, y, by="GO.ID.Term", all=TRUE), list(b1[,c(2,3)], d1[,c(2,3)], a1[,c(2,3)], c1[,c(2,3)]))
+
+colnames(df) <- c("GO.ID.Term", "Down_E12.5", "Down_E14.5", "Up_E12.5", "Up_E14.5")
+
+df[is.na(df)] <- 0
+rownames(df) <- df$GO.ID.Term
+df$GO.ID.Term <- NULL
+
+df_green <- df
+
+x <- na.omit(as.matrix(df))
+
+x[is.infinite(x)] <- 0
+
+### P value matrix
+df_p <- Reduce(function(x, y) merge(x, y, by="GO.ID.Term", all=TRUE), list(b1[,c(1,3)], d1[,c(1,3)], a1[,c(1,3)], c1[,c(1,3)]))
+
+colnames(df_p) <- c("GO.ID.Term", "Down_E12.5", "Down_E14.5", "Up_E12.5", "Up_E14.5")
+
+rownames(df_p) <- df_p$GO.ID.Term
+
+df_p$GO.ID.Term <- NULL
+
+df_p_green <- df_p
+
+myBreaks <- c(0,seq(max(x)/paletteLength, max(x), length.out=floor(paletteLength/2)))
+
+myColor <- colorRampPalette(c("#9E0041", "#FEBE6E", "white"))(paletteLength)
+
+# It's not printed out to increase the clarity of this report
+pheatmap(x, clustering_distance_rows="correlation", cluster_rows = T, cluster_cols = F, legend = T, fontsize_row  = 9, color = rev(myColor), main = "Green")
+
+```
+
+
+### 2.3.2 Grey module
+```{r, fig.width = 7, fig.height = 8}
+### Grey module alone ###
+mcol <- "grey"
+
+short.terms <- arrange(filter(GO_df_all_module_all, module_color == mcol, Direction == "Up", DPC %in% c("E12.5", "E14.5"),  classicFisher < 0.05, Enrichment > 0), classicFisher)$GO.ID.Term[1:50]
+
+a1 <- filter(E12.5_up_GO_df_all_module, module_color == mcol, GO.ID.Term %in% short.terms)[,c(6,8,9)]
+b1 <- filter(E12.5_down_GO_df_all_module, module_color == mcol, GO.ID.Term %in% short.terms)[,c(6, 8,9)]
+c1 <- filter(E14.5_up_GO_df_all_module, module_color == mcol, GO.ID.Term %in% short.terms)[,c(6, 8,9)]
+d1 <- filter(E14.5_down_GO_df_all_module, module_color == mcol, GO.ID.Term %in% short.terms)[,c(6, 8,9)]
+
+
+## Setting Enrichment to 0 if P > 0.05
+a1$Enrichment <- ifelse(a1$classicFisher > 0.05, 0, a1$Enrichment)
+b1$Enrichment <- ifelse(b1$classicFisher > 0.05, 0, b1$Enrichment)
+c1$Enrichment <- ifelse(c1$classicFisher > 0.05, 0, c1$Enrichment)
+d1$Enrichment <- ifelse(d1$classicFisher > 0.05, 0, d1$Enrichment)
+
+
+### Enrichment matrix
+df <- Reduce(function(x, y) merge(x, y, by="GO.ID.Term", all=TRUE), list(b1[,c(2,3)], d1[,c(2,3)], a1[,c(2,3)], c1[,c(2,3)]))
+
+colnames(df) <- c("GO.ID.Term", "Down_E12.5", "Down_E14.5", "Up_E12.5", "Up_E14.5")
+
+df[is.na(df)] <- 0
+rownames(df) <- df$GO.ID.Term
+df$GO.ID.Term <- NULL
+
+df_grey <- df
+
+x <- na.omit(as.matrix(df))
+
+x[is.infinite(x)] <- 0
+
+### P value matrix
+df_p <- Reduce(function(x, y) merge(x, y, by="GO.ID.Term", all=TRUE), list(b1[,c(1,3)], d1[,c(1,3)], a1[,c(1,3)], c1[,c(1,3)]))
+
+colnames(df_p) <- c("GO.ID.Term", "Down_E12.5", "Down_E14.5", "Up_E12.5", "Up_E14.5")
+
+rownames(df_p) <- df_p$GO.ID.Term
+
+df_p$GO.ID.Term <- NULL
+
+df_p_grey <- df_p
+
+
+myBreaks <- c(0,seq(max(x)/paletteLength, max(x), length.out=floor(paletteLength/2)))
+
+myColor <- colorRampPalette(c("#9E0041", "#FEBE6E", "white"))(50)
+
+pheatmap(x, clustering_distance_rows="correlation", cluster_rows = T, cluster_cols = F, legend = T, fontsize_row  = 9, color = rev(myColor), main = "Grey")
+
+```
+
+
+### 2.3.3 Green & Grey mod. init. response
+```{r, fig.width = 7, fig.height = 12}
+df_green$GO.ID.Term <- rownames(df_green)
+rownames(df_green) <- NULL
+
+df_grey$GO.ID.Term <- rownames(df_grey)
+rownames(df_grey) <- NULL
+
+df_green_f <- df_green[,c(5,3,4)]
+df_grey_f <- df_grey[,c(5,3,4)]
+
+#head(df_green_f)
+#dim(df_green_f)
+
+#head(df_grey_f)
+#dim(df_grey_f)
+
+
+colnames(df_green_f) <- c("GO.ID.Term", "Up_E12.5_green", "Up_E14.5_green")
+colnames(df_grey_f) <- c("GO.ID.Term", "Up_E12.5_grey", "Up_E14.5_grey")
+
+df_m <- merge(df_green_f, df_grey_f, by = "GO.ID.Term", all=TRUE)
+
+#dim(df_m)
+
+rownames(df_m) <- df_m$GO.ID.Term
+df_m$GO.ID.Term <- NULL
+
+df_m <- df_m[,c(1,3,2,4)]
+
+x <- as.matrix(df_m)
+x[is.na(x)] <- 0
+
+#Removes rows with 0 enrichment 
+x <- x[rowSums(x)!=0, ]
+
+myBreaks <- c(0,seq(max(x)/paletteLength, max(x), length.out=floor(paletteLength/2)))
+myColor <- colorRampPalette(c("#9E0041", "#FEBE6E", "grey95"))(paletteLength)
+
+pheatmap(x, clustering_distance_rows="correlation", cluster_rows = T, cluster_cols = F, legend = T, fontsize_row  = 9, color = rev(myColor), main = "Non-curated terms")
+
+
+```
+
+```{r, fig.cap="Fig. 3b Gene set enrichment analysis of GO BP terms significantly enriched among DE genes (FDR < 0.05) at E12.5 and E14.5 in Green and Grey modules showing upregulation of angiogenesis and immune pathways. Representative enriched GO BP terms with p < 0.05 colored by enrichment; gray represents enrichment p > 0.05 (Fisher’s exact test). Colors signify relative log2 fold enrichment."}
+
+# Manual curation
+
+#Curated GO BP terms
+curated_list <- c(
+"GO:0007263.nitric oxide mediated signal transductio...",  
+"GO:0038084.vascular endothelial growth factor signa...",
+"GO:0001525.angiogenesis",
+"GO:0051607.defense response to virus",
+"GO:0032722.positive regulation of chemokine product...",
+"GO:0050715.positive regulation of cytokine secretio...",
+"GO:0070374.positive regulation of ERK1 and ERK2 cas...",
+"GO:0030198.extracellular matrix organization",         
+"GO:0007155.cell adhesion",                              
+"GO:0006909.phagocytosis",
+"GO:0071604.transforming growth factor beta producti..."
+  
+)
+
+#length(curated_list)
+
+df_m$GO.ID.Term <- rownames(df_m)
+df_m1 <- filter(df_m, GO.ID.Term %in% curated_list)
+
+df_m1$GO.ID.Term <- factor(df_m1$GO.ID.Term, levels = curated_list)
+df_m1 <- arrange(df_m1, GO.ID.Term)
+
+rownames(df_m1) <- df_m1$GO.ID.Term
+df_m1$GO.ID.Term <- NULL
+   
+x <- as.matrix(df_m1)
+x[is.na(x)] <- 0
+
+#Removes rows with 0 enrichment 
+x <- x[rowSums(x)!=0, ]
+
+myBreaks <- c(0,seq(max(x)/paletteLength, max(x), length.out=floor(paletteLength/2)))
+myColor <- colorRampPalette(c("#9E0041", "#FEBE6E", "grey95"))(paletteLength)
+
+#pheatmap(x, clustering_distance_rows="correlation", cluster_rows = F, cluster_cols = F, legend = T, #fontsize_row  = 9, color = rev(myColor), main = "Green and Grey modules capture initial response")
+
+rownames(x) <- c(
+"Nitric oxide mediated signal transduction",  
+"VEGF signaling pathway",
+"Angiogenesis",
+"Defense response to virus",
+"Positive regulation of chemokine production",
+"Positive regulation of cytokine secretion",
+"Positive regulation of ERK1 and ERK2 cascade",
+"Extracellular matrix organization",         
+"Cell adhesion",                              
+"Phagocytosis",
+"TGF beta production"
+)
+
+myBreaks <- c(0,seq(max(x)/paletteLength, max(x), length.out=floor(paletteLength/2)))
+myColor <- colorRampPalette(c("#9E0041", "#FEBE6E", "grey95"))(paletteLength)
+
+pheatmap(x[,2:4], clustering_distance_rows="correlation", cluster_rows = F, cluster_cols = F, legend = T, fontsize_row  = 9, color = rev(myColor), main = "Green & Grey modules capture initial resp.")  
+
+```
+
+# 3. R sessionInfo()
+
+```{r, fig.width = 6, fig.height = 12}
+
+library(pander)
+
+pander(sessionInfo())
+
+#save.image("Workspace_recalculated_GO_BP_modules_3_15_2021.RData")
+#load("Workspace_recalculated_GO_BP_modules_3_15_2021.RData")
 ```
