@@ -1,2 +1,1 @@
-# Canales_eLIFE_2021_WGCNA_GO
-WGCNA and Gene Ontology analysis
+# Canales et al. eLIFE 2021 WGCNA & Gene Ontology Enrichment Analysis
